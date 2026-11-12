@@ -1,4 +1,4 @@
-# Critter Carnage Karts
+# Carnage Karts
 
 A voxel-space kart racer that runs in the browser. Six cute animal racers, three laps, weapon pickups, and a very messy finish (gore can be set to Off, On or Extra on the menu).
 
