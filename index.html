@@ -124,7 +124,7 @@ function ord(n){return n+(['th','st','nd','rd'][(n%100-20)%10]||['th','st','nd',
 let W=400;const H=225;
 const SCALE=180;let K=(W/2)/SCALE;const DIST=520, FOGS=170;
 const MS=512, MM=511;
-const HALF=18, BLEND=28, WATER=6, LAPS=3;
+const HALF=22, BLEND=28, WATER=6, LAPS=3;
 const WALL_IN=HALF+5, WALL_OUT=WALL_IN+2.5, WALL_H=4.5, KLIM=WALL_IN-1.7; // grass verge, then barrier wall
 const SPECIES=[
  {id:'bunny',name:'Bun-Bun',fur:'#f7f2ee',fur2:'#ffb3cf',kart:'#ff6fa8',kart2:'#c94681'},
@@ -272,7 +272,7 @@ function genWorld(seed){
  cmap0.set(cmap);
  // ---- item boxes
  boxes=[];
- for(const f of [0.16,0.4,0.62,0.84]){const k=Math.floor(f*N);for(const off of [-11,-4,4,11]){
+ for(const f of [0.16,0.4,0.62,0.84]){const k=Math.floor(f*N);for(const off of [-13.5,-4.5,4.5,13.5]){
   boxes.push({x:TX[k]-TTY[k]*off,y:TY[k]+TTX[k]*off,z:TH[k],active:true,t:0,ph:rnd()*6});}}
  // ---- sky panorama
  const sc=mk(SKYW,H),sg=sc.getContext('2d');const hor=H*0.36;
@@ -532,11 +532,11 @@ let racers=[],player=null,order=[],projectiles=[],particles=[],screenBlood=[],ms
 let shake=0,hitFlash=0,finishCount=0,selected=0,lastNum=0;
 const cam={x:256,y:256,h:40,a:0,fx:1,fy:0,rx:0,ry:1,hor:H*0.36};
 
-function makeRacer(sp,isPlayer,slot){const s=(N-5-slot*4+N)%N;const lat=(slot%2?6:-6);
+function makeRacer(sp,isPlayer,slot){const s=(N-5-slot*4+N)%N;const lat=(slot%2?7:-7);
  const k={sp,isPlayer,x:TX[s]-TTY[s]*lat,y:TY[s]+TTX[s]*lat,z:TH[s],vz:0,onGround:true,a:Math.atan2(TTY[s],TTX[s]),speed:0,
   seg:s,lap:-1,half:false,prog:-5,finished:false,finishTime:null,ko:0,koX:0,koY:0,koZ:0,drown:false,spin:0,spinA:0,invuln:0,shield:0,boost:0,
   item:null,pending:null,roulette:0,itemHeld:0,lapStart:0,lastLap:null,bestLap:null,kills:0,kos:0,bloodTires:0,offT:0,driftT:0,
-  steerVis:0,driftVis:0,squash:0,skill:isPlayer?1:[0.9,0.94,0.92,0.96,0.89][slot%5],skillMul:1,laneOff:(rnd()-0.5)*16,aiT:rnd()*2,stuckT:0,stuckRev:0,rank:slot,idx:slot};
+  steerVis:0,driftVis:0,squash:0,skill:isPlayer?1:[0.9,0.94,0.92,0.96,0.89][slot%5],skillMul:1,laneOff:(rnd()-0.5)*20,aiT:rnd()*2,stuckT:0,stuckRev:0,rank:slot,idx:slot};
  return k;}
 
 function initRace(){
@@ -651,7 +651,7 @@ async function enableTilt(){
 function updateGyro(dt){if(!ctrl.tilt||!gyro.on)return;let a=angDiff(gyro.zero,gyro.raw);const dz=0.05,mx=0.38;
  a=Math.abs(a)<dz?0:(a-Math.sign(a)*dz);const t=clamp(a/(mx-dz),-1,1);gyro.val+=(t-gyro.val)*Math.min(1,14*dt);}
 function aiInput(k,dt){
- k.aiT-=dt;if(k.aiT<=0){k.aiT=2+rnd()*3;k.laneOff=(rnd()-0.5)*20;}
+ k.aiT-=dt;if(k.aiT<=0){k.aiT=2+rnd()*3;k.laneOff=(rnd()-0.5)*25;}
  const look=6+Math.floor(Math.max(0,k.speed)/14),t=(k.seg+look)%N;
  let lo=k.laneOff;for(const q of [t,(t+8)%N]){if(noWall[q*2+1])lo=Math.min(lo,-3);if(noWall[q*2])lo=Math.max(lo,3);}
  const tx=TX[t]-TTY[t]*lo,ty=TY[t]+TTX[t]*lo;const d=angDiff(k.a,Math.atan2(ty-k.y,tx-k.x));
