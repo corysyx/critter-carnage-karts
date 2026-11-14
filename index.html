@@ -209,9 +209,15 @@ function genWorld(seed){
  // which stretches of each road side run beside water? those get no barrier
  noWall=new Uint8Array(N*2);{const cand=new Uint8Array(N*2);
   for(let k=0;k<N;k++)for(let sd=0;sd<2;sd++){const sg=sd?1:-1,nx=-TTY[k]*sg,ny=TTX[k]*sg;let w=0;
-   for(const dd of [WALL_OUT+3,WALL_OUT+8,WALL_OUT+14])if(bil(baseH,TX[k]+nx*dd,TY[k]+ny*dd)<WATER-0.5)w++;cand[k*2+sd]=w>=2?1:0;}
+   for(const dd of [WALL_OUT+2,WALL_OUT+6,WALL_OUT+12,WALL_OUT+20,WALL_OUT+30])if(bil(baseH,TX[k]+nx*dd,TY[k]+ny*dd)<WATER-0.5)w++;cand[k*2+sd]=w>=4?1:0;}
   for(let k=0;k<N;k++)for(let sd=0;sd<2;sd++){let c=0;for(let q=-6;q<=6;q++)c+=cand[((k+q+N)%N)*2+sd];noWall[k*2+sd]=c>=8?1:0;}
-  for(let k=0;k<N;k++)if(noWall[k*2]&&noWall[k*2+1])noWall[k*2+((Math.floor(k/30))&1)]=0; // never open on both sides at once
+  {const runL=new Int32Array(N*2);for(let sd=0;sd<2;sd++)for(let k=0;k<N;k++){if(!noWall[k*2+sd]||runL[k*2+sd])continue;
+    let a=k,b=k;while(noWall[((a-1+N)%N)*2+sd]&&b-a<N)a--;while(noWall[((b+1)%N)*2+sd]&&b-a<N)b++;for(let q=a;q<=b;q++)runL[((q+N)%N)*2+sd]=b-a+1;}
+   for(let k=0;k<N;k++)if(noWall[k*2]&&noWall[k*2+1])noWall[k*2+(runL[k*2]>=runL[k*2+1]?1:0)]=0;} // never open on both sides: keep the longer stretch
+  // only keep long open stretches (big lakes); short ones (ponds, inlets) get a wall
+  for(let sd=0;sd<2;sd++){let k0=0;while(k0<N&&noWall[k0*2+sd])k0++;if(k0>=N)continue;
+   for(let o=0;o<N;){const k=(k0+o)%N;if(!noWall[k*2+sd]){o++;continue;}let len=0;while(len<N&&noWall[((k+len)%N)*2+sd])len++;
+    if(len<36)for(let q=0;q<len;q++)noWall[((k+q)%N)*2+sd]=0;o+=len;}}
   for(let k=0;k<6;k++){noWall[k*2]=0;noWall[k*2+1]=0;noWall[(N-1-k)*2]=0;noWall[(N-1-k)*2+1]=0;}}
  for(let y=0;y<MS;y++)for(let x=0;x<MS;x++){const i=y*MS+x,d=tdist[i];let h=baseH[i];gapM[i]=0;
   if(d<RAD){const nr=tnear[i],t0=TH[nr];const sd=((x+.5-TX[nr])*(-TTY[nr])+(y+.5-TY[nr])*TTX[nr])>0?1:0;const gap=noWall[nr*2+sd];gapM[i]=gap;
