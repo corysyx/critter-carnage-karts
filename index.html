@@ -125,6 +125,7 @@ let W=400;const H=225;
 const SCALE=180;let K=(W/2)/SCALE;const DIST=520, FOGS=170;
 const MS=512, MM=511;
 const HALF=18, BLEND=28, WATER=6, LAPS=3;
+const WALL_IN=HALF+5, WALL_OUT=WALL_IN+2.5, WALL_H=4.5, KLIM=WALL_IN-1.7; // grass verge, then barrier wall
 const SPECIES=[
  {id:'bunny',name:'Bun-Bun',fur:'#f7f2ee',fur2:'#ffb3cf',kart:'#ff6fa8',kart2:'#c94681'},
  {id:'panda',name:'Pandy',fur:'#ffffff',fur2:'#2b2633',kart:'#4fd1a5',kart2:'#2a8f6e'},
@@ -197,14 +198,14 @@ function genWorld(seed){
  th=smooth(th,22,5);for(let k=0;k<N;k++)th[k]=Math.max(th[k]*0.85,WATER+4);th=smooth(th,10,3);
  for(let k=0;k<N;k++)TH[k]=Math.max(th[k],WATER+3.5);
  // ---- carve
- tdist.fill(1e9);const RAD=HALF+BLEND,R2=RAD*RAD;
+ tdist.fill(1e9);const RAD=WALL_OUT+BLEND,R2=RAD*RAD;
  for(let k=0;k<N;k++){const cx=TX[k],cy=TY[k];
   for(let y=Math.floor(cy-RAD);y<=Math.ceil(cy+RAD);y++){const dy=y+.5-cy;
    for(let x=Math.floor(cx-RAD);x<=Math.ceil(cx+RAD);x++){const dx=x+.5-cx,d2=dx*dx+dy*dy;if(d2>=R2)continue;
     const i=(y&MM)*MS+(x&MM);if(d2<tdist[i]){tdist[i]=d2;tnear[i]=k;}}}}
  for(let i=0;i<MS*MS;i++){if(tdist[i]<1e8)tdist[i]=Math.sqrt(tdist[i]);}
  for(let i=0;i<MS*MS;i++){const d=tdist[i];let h=baseH[i];
-  if(d<RAD){const t0=TH[tnear[i]];if(d<=HALF)h=t0;else{let t=(d-HALF)/BLEND;t=t*t*(3-2*t);h=t0+(h-t0)*t;}}
+  if(d<RAD){const t0=TH[tnear[i]];if(d<=WALL_IN)h=t0;else if(d<=WALL_OUT)h=t0+WALL_H;else{let t=(d-WALL_OUT)/BLEND;t=t*t*(3-2*t);h=t0+(h-t0)*t;}}
   hm[i]=h;}
  // ---- colours
  const ASPH1=rgb(96,90,112),RED=rgb(235,64,96),WHT=rgb(250,246,255),BLK=rgb(40,34,52);
@@ -215,6 +216,8 @@ function genWorld(seed){
    else{surf[i]=1;
     if(nr<3||nr>N-2)c=(((x>>1)+(y>>1))&1)?WHT:BLK;
     else{c=shade(ASPH1,0.9+n*0.2+jit*0.08); if(d<0.9&&((nr>>3)&1))c=rgb(255,226,120);}}
+  }else if(d<=WALL_IN){surf[i]=0;c=mixc(mixc(G1,G2,clamp(n+jit*0.2,0,1)),rgb(150,225,120),0.35);
+  }else if(d<=WALL_OUT){surf[i]=5;const nr=tnear[i],top=d<WALL_IN+1.1;c=((nr>>2)&1)?(top?rgb(255,140,190):rgb(240,90,150)):(top?rgb(255,255,255):rgb(232,226,245));
   }else if(hm[i]<WATER){hm[i]=WATER;surf[i]=2;c=rgb(80+n*40,160+n*40,235+jit*10);}
   else{surf[i]=0;const h=hm[i];
    if(h<WATER+2.5)c=SAND;else if(h>78)c=SNOW;else if(h>58)c=mixc(ROCK,SNOW,(h-58)/20*0.4);
@@ -578,7 +581,18 @@ function updateRacer(k,dt,inp){
   if(rnd()<0.6){const bx=k.x-Math.cos(k.a)*4,by=k.y-Math.sin(k.a)*4;addP(bx,by,k.z+0.5,(rnd()-0.5)*20,(rnd()-0.5)*20,20,'spark',k.driftT>0.9?rgb(255,120,200):rgb(120,200,255),0.6,0.25);}}
  else{if(k.driftT>0.9){k.boost=Math.max(k.boost,0.7);if(k.isPlayer)sfx.boost();}k.driftT=0;}
  k.a+=st*turn*dt;
- const nx=k.x+Math.cos(k.a)*k.speed*dt,ny=k.y+Math.sin(k.a)*k.speed*dt,ng=groundH(nx,ny);
+ let nx=k.x+Math.cos(k.a)*k.speed*dt,ny=k.y+Math.sin(k.a)*k.speed*dt;
+ const wc=cellAt(nx,ny);
+ if(tdist[wc]>KLIM){ // hit the barrier: push back onto the verge, then slide or bounce
+  const nr=tnear[wc];let wx=nx-TX[nr],wy=ny-TY[nr];const wl=Math.hypot(wx,wy)||1;wx/=wl;wy/=wl;
+  nx=TX[nr]+wx*KLIM;ny=TY[nr]+wy*KLIM;
+  const vx=Math.cos(k.a)*k.speed,vy=Math.sin(k.a)*k.speed,vn=vx*wx+vy*wy;
+  if(vn>0){const imp=vn/Math.max(1,Math.abs(k.speed));
+   if(imp>0.8){k.speed*=-0.3;if(k.isPlayer){sfx.bump();shake=Math.max(shake,0.25);}}
+   else{k.speed*=1-imp*0.5;const ta=Math.atan2(vy-vn*wy,vx-vn*wx);if(k.speed>0)k.a+=angDiff(k.a,ta)*0.4;
+    if(rnd()<0.7)addP(nx+wx*1.5,ny+wy*1.5,k.z+1,(rnd()-0.5)*25-wx*15,(rnd()-0.5)*25-wy*15,15+rnd()*20,'spark',rnd()<0.5?rgb(255,230,120):rgb(255,255,255),0.6,0.3);
+    if(k.isPlayer&&rnd()<0.15)sfx.bump();}}}
+ const ng=groundH(nx,ny);
  if(ng-k.z>3.2){k.speed*=-0.3;if(k.isPlayer&&Math.abs(k.speed)>6)sfx.bump();}
  else{k.x=clamp(nx,3,MS-3);k.y=clamp(ny,3,MS-3);}
  const g=groundH(k.x,k.y);
@@ -600,9 +614,20 @@ function updateRacer(k,dt,inp){
 }
 function updateProjectiles(dt){
  for(let i=projectiles.length-1;i>=0;i--){const p=projectiles[i];p.t+=dt;p.life-=dt;
-  if(p.type==='rocket'){if(p.target&&p.target.ko<=0){const want=Math.atan2(p.target.y-p.y,p.target.x-p.x);p.a+=clamp(angDiff(p.a,want),-3.4*dt,3.4*dt);}
+  if(p.seg==null)p.seg=p.owner?p.owner.seg:0;
+  {let best=p.seg,bd=1e18;for(let o=-10;o<=20;o++){const q=(p.seg+o+N)%N,dx=TX[q]-p.x,dy=TY[q]-p.y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=q;}}p.seg=best;}
+  if(p.type==='rocket'){let ax,ay;const tg=p.target&&p.target.ko<=0?p.target:null;
+   if(tg&&Math.hypot(tg.x-p.x,tg.y-p.y)<35){ax=tg.x;ay=tg.y;}else{const q=(p.seg+10)%N;ax=TX[q];ay=TY[q];}
+   p.a+=clamp(angDiff(p.a,Math.atan2(ay-p.y,ax-p.x)),-4*dt,4*dt);
    if(rnd()<0.9)addP(p.x-Math.cos(p.a)*3,p.y-Math.sin(p.a)*3,p.z,(rnd()-0.5)*10,(rnd()-0.5)*10,5,'fire',rnd()<0.5?rgb(255,220,90):rgb(255,140,60),0.8,0.25);}
-  if(p.speed>0){p.x+=Math.cos(p.a)*p.speed*dt;p.y+=Math.sin(p.a)*p.speed*dt;const g=groundH(p.x,p.y);
+  if(p.speed>0){p.x+=Math.cos(p.a)*p.speed*dt;p.y+=Math.sin(p.a)*p.speed*dt;
+   const pc=cellAt(p.x,p.y);
+   if(tdist[pc]>WALL_IN-0.5){const nr=tnear[pc];let wx=p.x-TX[nr],wy=p.y-TY[nr];const wl=Math.hypot(wx,wy)||1;wx/=wl;wy/=wl;
+    if(p.type==='saw'){const dx=Math.cos(p.a),dy=Math.sin(p.a),vn=dx*wx+dy*wy;if(vn>0){p.a=Math.atan2(dy-2*vn*wy,dx-2*vn*wx);p.bounces=(p.bounces||0)+1;
+      sparkle(p.x,p.y,p.z,8,[rgb(255,230,120),rgb(255,255,255)]);if(p.bounces>4)p.life=0;else if(vol(p.x,p.y)>0.2)sfx.bump();}
+     p.x=TX[nr]+wx*(WALL_IN-0.6);p.y=TY[nr]+wy*(WALL_IN-0.6);}
+    else{p.life=0;}}
+   const g=groundH(p.x,p.y);
    if(g-p.z>(p.type==='rocket'?9:4)){p.life=0;}else p.z=g+(p.type==='rocket'?3.5:2.2);
    if(p.x<0||p.y<0||p.x>MS||p.y>MS)p.life=0;}
   else p.z=groundH(p.x,p.y);
