@@ -191,6 +191,13 @@ function genWorld(seed){
   for(let s=0;s<80;s++){const t=s/80;dense.push([cr(p0[0],p1[0],p2[0],p3[0],t),cr(p0[1],p1[1],p2[1],p3[1],t)]);}}
  const cum=[0];for(let i=1;i<=dense.length;i++){const a=dense[i-1],b=dense[i%dense.length];cum.push(cum[i-1]+Math.hypot(b[0]-a[0],b[1]-a[1]));}
  const total=cum[cum.length-1];N=Math.floor(total/2);
+ const segLen=total/N;
+ // wooden picket fence: returns [height above road, kind] kind 0 ground,1 picket,2 post,3 bottom rail
+ const fenceAt=(x,y,nr,d)=>{const along=nr*segLen+((x+.5-TX[nr])*TTX[nr]+(y+.5-TY[nr])*TTY[nr]),dd=d-WALL_IN;
+  const pm=((along%24)+24)%24;if(pm<2.2&&dd>0.1&&dd<2.4)return [WALL_H+1.6,2,along];
+  if(dd<0.45||dd>2.0)return [0,0,along];
+  const f=((along/2.4)%1+1)%1;if(f<0.58){const peak=1-Math.abs(f/0.58*2-1);return [3.4+peak*1.1,1,along];}
+  return [1.2,3,along];};
  TX=new Float32Array(N);TY=new Float32Array(N);TH=new Float32Array(N);TTX=new Float32Array(N);TTY=new Float32Array(N);
  let j=0;for(let k=0;k<N;k++){const tg=k*total/N;while(cum[j+1]<tg)j++;const a=dense[j],b=dense[(j+1)%dense.length],t=(tg-cum[j])/(cum[j+1]-cum[j]||1);TX[k]=a[0]+(b[0]-a[0])*t;TY[k]=a[1]+(b[1]-a[1])*t;}
  for(let k=0;k<N;k++){const dx=TX[(k+1)%N]-TX[(k-1+N)%N],dy=TY[(k+1)%N]-TY[(k-1+N)%N],l=Math.hypot(dx,dy)||1;TTX[k]=dx/l;TTY[k]=dy/l;}
@@ -223,7 +230,7 @@ function genWorld(seed){
   if(d<RAD){const nr=tnear[i],t0=TH[nr];const sd=((x+.5-TX[nr])*(-TTY[nr])+(y+.5-TY[nr])*TTX[nr])>0?1:0;const gap=noWall[nr*2+sd];gapM[i]=gap;
    if(d<=WALL_IN)h=t0;
    else if(gap){let t=clamp((d-WALL_IN)/7,0,1);t=t*t*(3-2*t);h=t0+(Math.min(h,WATER-3)-t0)*t;}
-   else if(d<=WALL_OUT){const u=(d-WALL_IN)/(WALL_OUT-WALL_IN),prof=Math.sqrt(Math.max(0,1-(2*u-1)*(2*u-1)));h=t0+1.2+(WALL_H-1.2)*prof;if(nr%12<1)h=t0+WALL_H+2.2;}
+   else if(d<=WALL_OUT){h=t0+fenceAt(x,y,nr,d)[0];}
    else{let t=(d-WALL_OUT)/BLEND;t=t*t*(3-2*t);h=t0+(h-t0)*t;}}
   hm[i]=h;}
  // ---- colours
@@ -238,9 +245,11 @@ function genWorld(seed){
   }else if(d<=WALL_IN){surf[i]=0;const nr=tnear[i];c=mixc(mixc(G1,G2,clamp(n+jit*0.2,0,1)),rgb(150,225,120),0.35);
    if(gapM[i]&&d>WALL_IN-1.6){c=((nr>>1)&1)?rgb(255,214,64):rgb(46,38,56);hm[i]+=0.35;}
   }else if(gapM[i]&&hm[i]>=WATER){surf[i]=0;c=mixc(SAND,rgb(220,190,140),jit*0.4);
-  }else if(d<=WALL_OUT&&!gapM[i]){surf[i]=5;const nr=tnear[i],u=(d-WALL_IN)/(WALL_OUT-WALL_IN),prof=Math.sqrt(Math.max(0,1-(2*u-1)*(2*u-1)));
-   if(nr%12<1)c=prof>0.8?rgb(255,248,220):rgb(255,200,70);
-   else{const st=(Math.floor((nr*2+u*5)/2.5)&1);c=st?rgb(255,105,165):rgb(255,250,252);c=shade(c,0.78+0.3*prof);if(u<0.12)c=shade(rgb(214,70,130),0.9);}
+  }else if(d<=WALL_OUT&&!gapM[i]){const nr=tnear[i],[fh,kind,along]=fenceAt(x,y,nr,d);surf[i]=kind?5:0;
+   if(kind===0)c=mixc(mixc(G1,G2,clamp(n+jit*0.2,0,1)),rgb(150,225,120),0.35);
+   else if(kind===2)c=shade(rgb(132,84,52),0.9+jit*0.15);
+   else if(kind===3)c=shade(rgb(168,112,66),0.88+jit*0.12);
+   else{const plank=Math.floor(along/2.4);c=shade(mixc(rgb(214,158,96),rgb(238,194,132),((plank*37)%7)/7),0.9+jit*0.14);}
   }else if(hm[i]<WATER){hm[i]=WATER;surf[i]=2;c=rgb(80+n*40,160+n*40,235+jit*10);}
   else{surf[i]=0;const h=hm[i];
    if(h<WATER+2.5)c=SAND;else if(h>78)c=SNOW;else if(h>58)c=mixc(ROCK,SNOW,(h-58)/20*0.4);
