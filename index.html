@@ -164,6 +164,8 @@ const hm=new Float32Array(MS*MS), baseH=new Float32Array(MS*MS);
 const ccol=new Uint32Array(MS*MS), cmap=new Uint32Array(MS*MS), cmap0=new Uint32Array(MS*MS);
 const surf=new Uint8Array(MS*MS); // 0 grass 1 track 2 water 3 bush 4 curb
 const tdist=new Float32Array(MS*MS), tnear=new Int32Array(MS*MS);
+const gapM=new Uint8Array(MS*MS); // 1 = no barrier here (open edge beside water)
+let noWall=null;
 const stainM=new Uint8Array(MS*MS);
 let N=0,TX,TY,TH,TTX,TTY;
 let boxes=[];
@@ -204,8 +206,19 @@ function genWorld(seed){
    for(let x=Math.floor(cx-RAD);x<=Math.ceil(cx+RAD);x++){const dx=x+.5-cx,d2=dx*dx+dy*dy;if(d2>=R2)continue;
     const i=(y&MM)*MS+(x&MM);if(d2<tdist[i]){tdist[i]=d2;tnear[i]=k;}}}}
  for(let i=0;i<MS*MS;i++){if(tdist[i]<1e8)tdist[i]=Math.sqrt(tdist[i]);}
- for(let i=0;i<MS*MS;i++){const d=tdist[i];let h=baseH[i];
-  if(d<RAD){const t0=TH[tnear[i]];if(d<=WALL_IN)h=t0;else if(d<=WALL_OUT)h=t0+WALL_H;else{let t=(d-WALL_OUT)/BLEND;t=t*t*(3-2*t);h=t0+(h-t0)*t;}}
+ // which stretches of each road side run beside water? those get no barrier
+ noWall=new Uint8Array(N*2);{const cand=new Uint8Array(N*2);
+  for(let k=0;k<N;k++)for(let sd=0;sd<2;sd++){const sg=sd?1:-1,nx=-TTY[k]*sg,ny=TTX[k]*sg;let w=0;
+   for(const dd of [WALL_OUT+3,WALL_OUT+8,WALL_OUT+14])if(bil(baseH,TX[k]+nx*dd,TY[k]+ny*dd)<WATER-0.5)w++;cand[k*2+sd]=w>=2?1:0;}
+  for(let k=0;k<N;k++)for(let sd=0;sd<2;sd++){let c=0;for(let q=-6;q<=6;q++)c+=cand[((k+q+N)%N)*2+sd];noWall[k*2+sd]=c>=8?1:0;}
+  for(let k=0;k<N;k++)if(noWall[k*2]&&noWall[k*2+1])noWall[k*2+((Math.floor(k/30))&1)]=0; // never open on both sides at once
+  for(let k=0;k<6;k++){noWall[k*2]=0;noWall[k*2+1]=0;noWall[(N-1-k)*2]=0;noWall[(N-1-k)*2+1]=0;}}
+ for(let y=0;y<MS;y++)for(let x=0;x<MS;x++){const i=y*MS+x,d=tdist[i];let h=baseH[i];gapM[i]=0;
+  if(d<RAD){const nr=tnear[i],t0=TH[nr];const sd=((x+.5-TX[nr])*(-TTY[nr])+(y+.5-TY[nr])*TTX[nr])>0?1:0;const gap=noWall[nr*2+sd];gapM[i]=gap;
+   if(d<=WALL_IN)h=t0;
+   else if(gap){let t=clamp((d-WALL_IN)/7,0,1);t=t*t*(3-2*t);h=t0+(Math.min(h,WATER-3)-t0)*t;}
+   else if(d<=WALL_OUT){const u=(d-WALL_IN)/(WALL_OUT-WALL_IN),prof=Math.sqrt(Math.max(0,1-(2*u-1)*(2*u-1)));h=t0+1.2+(WALL_H-1.2)*prof;if(nr%12<1)h=t0+WALL_H+2.2;}
+   else{let t=(d-WALL_OUT)/BLEND;t=t*t*(3-2*t);h=t0+(h-t0)*t;}}
   hm[i]=h;}
  // ---- colours
  const ASPH1=rgb(96,90,112),RED=rgb(235,64,96),WHT=rgb(250,246,255),BLK=rgb(40,34,52);
@@ -216,8 +229,12 @@ function genWorld(seed){
    else{surf[i]=1;
     if(nr<3||nr>N-2)c=(((x>>1)+(y>>1))&1)?WHT:BLK;
     else{c=shade(ASPH1,0.9+n*0.2+jit*0.08); if(d<0.9&&((nr>>3)&1))c=rgb(255,226,120);}}
-  }else if(d<=WALL_IN){surf[i]=0;c=mixc(mixc(G1,G2,clamp(n+jit*0.2,0,1)),rgb(150,225,120),0.35);
-  }else if(d<=WALL_OUT){surf[i]=5;const nr=tnear[i],top=d<WALL_IN+1.1;c=((nr>>2)&1)?(top?rgb(255,140,190):rgb(240,90,150)):(top?rgb(255,255,255):rgb(232,226,245));
+  }else if(d<=WALL_IN){surf[i]=0;const nr=tnear[i];c=mixc(mixc(G1,G2,clamp(n+jit*0.2,0,1)),rgb(150,225,120),0.35);
+   if(gapM[i]&&d>WALL_IN-1.6){c=((nr>>1)&1)?rgb(255,214,64):rgb(46,38,56);hm[i]+=0.35;}
+  }else if(gapM[i]&&hm[i]>=WATER){surf[i]=0;c=mixc(SAND,rgb(220,190,140),jit*0.4);
+  }else if(d<=WALL_OUT&&!gapM[i]){surf[i]=5;const nr=tnear[i],u=(d-WALL_IN)/(WALL_OUT-WALL_IN),prof=Math.sqrt(Math.max(0,1-(2*u-1)*(2*u-1)));
+   if(nr%12<1)c=prof>0.8?rgb(255,248,220):rgb(255,200,70);
+   else{const st=(Math.floor((nr*2+u*5)/2.5)&1);c=st?rgb(255,105,165):rgb(255,250,252);c=shade(c,0.78+0.3*prof);if(u<0.12)c=shade(rgb(214,70,130),0.9);}
   }else if(hm[i]<WATER){hm[i]=WATER;surf[i]=2;c=rgb(80+n*40,160+n*40,235+jit*10);}
   else{surf[i]=0;const h=hm[i];
    if(h<WATER+2.5)c=SAND;else if(h>78)c=SNOW;else if(h>58)c=mixc(ROCK,SNOW,(h-58)/20*0.4);
@@ -329,6 +346,74 @@ function drawRacer(sp,view){
  }
  return c;
 }
+// ---- pseudo-3D kart built from stacked slices, so it can be drawn from any angle.
+// phi: 0 = facing away from the camera, +PI/2 = facing screen-right, PI = facing the camera. steer: -1..1
+function drawKart3D(sp,phi,steer){
+ const c=mk(64,64),g=c.getContext('2d'),S=Math.sin(phi),C=Math.cos(phi),TILT=0.36,OX=32,OY=59,roll=-steer*0.08;
+ const P=(f,r,h)=>{r+=h*roll;const x=f*S+r*C,d=f*C-r*S;return [OX+x,OY-h-d*TILT,d];};
+ const kc=hexc(sp.kart),k2=hexc(sp.kart2),TYRE=rgb(45,36,56),RIM=rgb(200,192,215);
+ const box=(f0,f1,r0,r1)=>[[f0,r0],[f1,r0],[f1,r1],[f0,r1]];
+ const rot=(pts,cf,cr,a)=>pts.map(([f,r])=>{const df=f-cf,dr=r-cr;return [cf+df*Math.cos(a)-dr*Math.sin(a),cr+df*Math.sin(a)+dr*Math.cos(a)];});
+ const body=[[-18,-11],[-16,-13],[8,-13],[19,-7],[21,0],[19,7],[8,13],[-16,13],[-18,11]];
+ const d=steer*0.5,objs=[];
+ for(const [wf,wr,front] of [[13,-15,1],[13,15,1],[-12,-15,0],[-12,15,0]]){let fp=box(wf-4.5,wf+4.5,wr-2.6,wr+2.6);if(front)fp=rot(fp,wf,wr,d);
+  objs.push({fp,h0:0,h1:9,col:h=>h===4||h===5?RIM:TYRE,cf:wf,cr:wr});}
+ objs.push({fp:body,h0:3,h1:12,col:(h)=>h<6?k2:(h===12?mixc(kc,rgb(255,255,255),0.28):kc),cf:0,cr:0});
+ objs.push({fp:box(19,23,-10,10),h0:3,h1:6,col:()=>rgb(70,60,85),cf:21,cr:0});
+ objs.push({fp:box(-21,-18,-6,-3),h0:4,h1:6,col:()=>rgb(150,142,170),cf:-20,cr:-5});
+ objs.push({fp:box(-21,-18,3,6),h0:4,h1:6,col:()=>rgb(150,142,170),cf:-20,cr:5});
+ objs.push({fp:box(-15,-5,-8,8),h0:12,h1:19,col:h=>h===19?mixc(k2,rgb(255,255,255),0.2):k2,cf:-10,cr:0});
+ objs.push({fp:box(5,7,-4,4),h0:13,h1:16,col:()=>rgb(58,47,72),cf:6,cr:0});
+ const fill=(pts,col)=>{g.fillStyle='#'+((col&255)<<16|(col&0xff00)|((col>>16)&255)).toString(16).padStart(6,'0');g.beginPath();pts.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1]));g.closePath();g.fill();};
+ for(let h=0;h<=19;h++){const layer=objs.filter(o=>h>=o.h0&&h<=o.h1).map(o=>({o,dd:P(o.cf,o.cr,h)[2]})).sort((a,b)=>b.dd-a.dd);
+  for(const {o} of layer){const base=o.col(h),sh=(h===o.h1)?1:0.8+0.2*(h-o.h0)/Math.max(1,o.h1-o.h0);fill(o.fp.map(([f,r])=>P(f,r,h)),shade(base,sh));}
+  if(h===12){fill([[-15,-2.5],[18,-2],[18,2],[-15,2.5]].map(([f,r])=>P(f,r,12.4)),rgb(255,255,255));
+   if(C<0.2){for(const sr of [-8,8]){const q=P(20.5,sr,9);circ(g,q[0],q[1],2.2,'#fff7b8');}}
+   if(C>-0.2){for(const sr of [-8,8]){const q=P(-18.5,sr,9);circ(g,q[0],q[1],2,'#ff4466');}}}}
+ const hp=P(-6,steer*2.5,26),pawF=P(6,0,15);
+ if(C>0)for(const sr of [-4,4]){const q=P(6,sr,15);circ(g,q[0],q[1],3,sp.fur);}
+ head3(g,sp,phi,hp[0],hp[1],12,steer*0.22*C);
+ if(C<=0)for(const sr of [-4,4]){const q=P(6,sr,15);circ(g,q[0],q[1],3,sp.fur);}
+ return c;
+}
+function head3(g,sp,phi,x,y,r,tilt){
+ const id=sp.id,fur=sp.fur,f2=sp.fur2,vis=ps=>-Math.cos(ps),sx=(ps,k)=>Math.sin(ps)*r*k;
+ g.save();g.translate(x,y);g.rotate(tilt||0);
+ const fv=vis(phi),side=Math.sin(phi);
+ for(const ps of [phi-1.05,phi+1.05]){const ex=sx(ps,0.72),face=vis(ps)>0.15,tl=ex/r*0.35;
+  if(id==='bunny'){ell(g,ex,-r-3,3.5,8,tl,fur);if(face)ell(g,ex,-r-3,1.5*clamp(vis(ps)*1.4,0.3,1),5.5,tl,f2);}
+  else if(id==='panda')circ(g,ex*1.1,-r*0.75,4.6,f2);
+  else if(id==='fox'||id==='kitty'){const ic=id==='fox'?'#3a2230':'#ffb3cf';poly(g,[[ex-4.5,-r*0.5],[ex+4.5,-r*0.5],[ex*1.25,-r-8]],fur);if(face)poly(g,[[ex-2.5,-r*0.6],[ex+2.5,-r*0.6],[ex*1.2,-r-4]],ic);}
+  else if(id==='pig')poly(g,[[ex-4,-r*0.55],[ex+4,-r*0.75],[ex*1.35,-r-4]],f2);}
+ circ(g,0,0,r,fur);
+ const eyeAt=(ex,ey,v,panda)=>{const w=clamp(v*1.4,0.35,1);if(panda){g.fillStyle='#fff';g.beginPath();g.ellipse(ex,ey,2.4*w,2.4,0,0,TAU);g.fill();}
+  g.fillStyle=DARK;g.beginPath();g.ellipse(ex,ey,(panda?1.6:2.5)*w,panda?1.6:2.5,0,0,TAU);g.fill();circ(g,ex-0.8*w,ey-0.9,0.9,'#fff');};
+ if(id==='frog'){for(const ps of [phi-0.55,phi+0.55]){const ex=sx(ps,0.75),v=vis(ps);circ(g,ex,-r+3,5.5,fur);if(v>0.05){circ(g,ex,-r+3,3.4*clamp(v*1.3,0.4,1)+0.2,'#fff');eyeAt(ex+side*0.6,-r+3,v);}}}
+ if(fv>-0.3){
+  if(id==='panda')for(const ps of [phi-0.48,phi+0.48]){const v=vis(ps);if(v>0)ell(g,sx(ps,0.85),-1,3.8*clamp(v*1.3,0.4,1),5,0.4*Math.sign(Math.sin(ps)),f2);}
+  if(id==='fox'&&fv>0)ell(g,sx(phi,0.55),5,8*clamp(fv,0.45,1),5.5,0,f2);
+  if(id==='kitty'&&fv>0)ell(g,sx(phi,0.6),5,6*clamp(fv,0.45,1),4,0,f2);
+  if(id!=='frog')for(const ps of [phi-0.5,phi+0.5]){const v=vis(ps);if(v>0.05)eyeAt(sx(ps,0.9),-1,v,id==='panda');}
+  for(const ps of [phi-0.95,phi+0.95]){const v=vis(ps);if(v>0.05)ell(g,sx(ps,0.93),4,2.5*clamp(v*1.4,0.35,1),1.6,0,BLUSH);}
+  const nx=sx(phi,0.92);
+  if(Math.abs(side)>0.55){ // profile snouts stick out past the head
+   const sg=Math.sign(side),edge=sg*r*0.85;
+   if(id==='fox'){poly(g,[[edge,-1],[sg*(r+6),3],[edge,7]],f2);circ(g,sg*(r+5),3,1.4,DARK);}
+   else if(id==='pig'){ell(g,sg*r,3,2.6,3.4,0,f2);circ(g,sg*(r+0.6),3,0.8,'#b34d6b');}
+   else if(id==='kitty'){ell(g,sg*(r-2),4,3.5,3,0,f2);circ(g,sg*r,2.5,1.2,'#ff7fa8');}
+   else if(id==='frog'){g.strokeStyle=DARK;g.lineWidth=1.2;g.beginPath();g.arc(sg*3,1,6,sg>0?0.2:Math.PI-1.2,sg>0?1.2:Math.PI-0.2);g.stroke();}
+   else circ(g,sg*(r-1),3,1.5,id==='bunny'?'#ff7fa8':DARK);
+  }else if(fv>0){
+   g.strokeStyle=DARK;g.lineWidth=1.2;g.lineCap='round';
+   if(id==='pig'){ell(g,nx,4,4.6*clamp(fv,0.5,1),3.2,0,f2);circ(g,nx-1.6*fv,4,0.9,'#b34d6b');circ(g,nx+1.6*fv,4,0.9,'#b34d6b');}
+   else if(id==='frog'){g.beginPath();g.arc(nx,1,6*clamp(fv,0.5,1),0.3,Math.PI-0.3);g.stroke();}
+   else{ell(g,nx,3,1.9,1.3,0,(id==='bunny'||id==='kitty')?'#ff7fa8':DARK);
+    g.beginPath();g.arc(nx-1.4,4.4,1.4,0.2,Math.PI-0.2);g.stroke();g.beginPath();g.arc(nx+1.4,4.4,1.4,0.2,Math.PI-0.2);g.stroke();}
+   if(id==='kitty'&&fv>0.5){line(g,nx-6,3,nx-11,2,DARK,0.8);line(g,nx-6,5,nx-11,6,DARK,0.8);line(g,nx+6,3,nx+11,2,DARK,0.8);line(g,nx+6,5,nx+11,6,DARK,0.8);}
+  }}
+ if(fv<-0.3&&id==='fox')ell(g,sx(phi,0.3),r-2,5,3,0,f2);
+ g.restore();
+}
 function drawWreck(sp,bloody){
  const c=mk(64,64),g=c.getContext('2d'),R=mulberry(sp.idx*7+3);
  rr(g,4,44,11,15,4,'#2d2438');rr(g,49,44,11,15,4,'#2d2438');
@@ -384,6 +469,7 @@ function shieldSprite(){const w=64,h=64,d=new Uint32Array(w*h);
  return {w,h,data:d};}
 const SPR={};let ICON={},HEAD=[];
 function buildSprites(){
+ SPR.kart=SPECIES.map(sp=>{const a=[];for(let i=0;i<=8;i++){a.push([-1,0,1].map(st=>toSprite(drawKart3D(sp,i*Math.PI/8,st))));}return a;});
  SPR.racer=SPECIES.map(sp=>({back:toSprite(drawRacer(sp,'back')),front:toSprite(drawRacer(sp,'front')),side:toSprite(drawRacer(sp,'side')),wreck:toSprite(drawWreck(sp,true)),wreckClean:toSprite(drawWreck(sp,false))}));
  SPR.ghost=toSprite(drawGhost());SPR.rocket=toSprite(drawCarrot());SPR.saw=[toSprite(drawSaw(0)),toSprite(drawSaw(0.26))];
  SPR.mine=[toSprite(drawMine(false)),toSprite(drawMine(true))];SPR.slime=toSprite(drawSlime());SPR.box=[0,1,2,3,4,5,6,7,8].map(i=>toSprite(drawBox(i)));
@@ -435,7 +521,7 @@ function makeRacer(sp,isPlayer,slot){const s=(N-5-slot*4+N)%N;const lat=(slot%2?
  const k={sp,isPlayer,x:TX[s]-TTY[s]*lat,y:TY[s]+TTX[s]*lat,z:TH[s],vz:0,onGround:true,a:Math.atan2(TTY[s],TTX[s]),speed:0,
   seg:s,lap:-1,half:false,prog:-5,finished:false,finishTime:null,ko:0,koX:0,koY:0,koZ:0,drown:false,spin:0,spinA:0,invuln:0,shield:0,boost:0,
   item:null,pending:null,roulette:0,itemHeld:0,lapStart:0,lastLap:null,bestLap:null,kills:0,kos:0,bloodTires:0,offT:0,driftT:0,
-  skill:isPlayer?1:[0.9,0.94,0.92,0.96,0.89][slot%5],skillMul:1,laneOff:(rnd()-0.5)*16,aiT:rnd()*2,stuckT:0,stuckRev:0,rank:slot,idx:slot};
+  steerVis:0,driftVis:0,squash:0,skill:isPlayer?1:[0.9,0.94,0.92,0.96,0.89][slot%5],skillMul:1,laneOff:(rnd()-0.5)*16,aiT:rnd()*2,stuckT:0,stuckRev:0,rank:slot,idx:slot};
  return k;}
 
 function initRace(){
@@ -552,7 +638,8 @@ function updateGyro(dt){if(!ctrl.tilt||!gyro.on)return;let a=angDiff(gyro.zero,g
 function aiInput(k,dt){
  k.aiT-=dt;if(k.aiT<=0){k.aiT=2+rnd()*3;k.laneOff=(rnd()-0.5)*20;}
  const look=6+Math.floor(Math.max(0,k.speed)/14),t=(k.seg+look)%N;
- const tx=TX[t]-TTY[t]*k.laneOff,ty=TY[t]+TTX[t]*k.laneOff;const d=angDiff(k.a,Math.atan2(ty-k.y,tx-k.x));
+ let lo=k.laneOff;for(const q of [t,(t+8)%N]){if(noWall[q*2+1])lo=Math.min(lo,-3);if(noWall[q*2])lo=Math.max(lo,3);}
+ const tx=TX[t]-TTY[t]*lo,ty=TY[t]+TTX[t]*lo;const d=angDiff(k.a,Math.atan2(ty-k.y,tx-k.x));
  if(k.stuckRev>0){k.stuckRev-=dt;return {thr:-1,steer:d>0?-1:1};}
  if(Math.abs(k.speed)<5&&state!=='countdown'){k.stuckT+=dt;if(k.stuckT>1){k.stuckT=0;k.stuckRev=0.8;}}else k.stuckT=0;
  return {thr:(Math.abs(d)>1.2&&k.speed>40)?0:1,steer:clamp(d*2.4,-1,1),drift:false};}
@@ -581,9 +668,10 @@ function updateRacer(k,dt,inp){
   if(rnd()<0.6){const bx=k.x-Math.cos(k.a)*4,by=k.y-Math.sin(k.a)*4;addP(bx,by,k.z+0.5,(rnd()-0.5)*20,(rnd()-0.5)*20,20,'spark',k.driftT>0.9?rgb(255,120,200):rgb(120,200,255),0.6,0.25);}}
  else{if(k.driftT>0.9){k.boost=Math.max(k.boost,0.7);if(k.isPlayer)sfx.boost();}k.driftT=0;}
  k.a+=st*turn*dt;
+ k.steerVis+=(st-k.steerVis)*Math.min(1,10*dt);k.driftVis+=((k.driftT>0?st*0.45:0)-k.driftVis)*Math.min(1,8*dt);if(k.squash>0)k.squash=Math.max(0,k.squash-dt*5);
  let nx=k.x+Math.cos(k.a)*k.speed*dt,ny=k.y+Math.sin(k.a)*k.speed*dt;
  const wc=cellAt(nx,ny);
- if(tdist[wc]>KLIM){ // hit the barrier: push back onto the verge, then slide or bounce
+ if(tdist[wc]>KLIM&&!gapM[wc]){ // hit the barrier: push back onto the verge, then slide or bounce
   const nr=tnear[wc];let wx=nx-TX[nr],wy=ny-TY[nr];const wl=Math.hypot(wx,wy)||1;wx/=wl;wy/=wl;
   nx=TX[nr]+wx*KLIM;ny=TY[nr]+wy*KLIM;
   const vx=Math.cos(k.a)*k.speed,vy=Math.sin(k.a)*k.speed,vn=vx*wx+vy*wy;
@@ -597,7 +685,7 @@ function updateRacer(k,dt,inp){
  else{k.x=clamp(nx,3,MS-3);k.y=clamp(ny,3,MS-3);}
  const g=groundH(k.x,k.y);
  if(k.onGround){if(g<k.z-1.2)k.onGround=false;else{k.vz=clamp((g-k.z)/dt,-60,110);k.z=g;}}
- if(!k.onGround){k.vz-=230*dt;k.z+=k.vz*dt;if(k.z<=g){if(k.isPlayer&&k.vz<-70){shake=Math.max(shake,0.15);sfx.bump();}k.z=g;k.onGround=true;k.vz=0;}}
+ if(!k.onGround){k.vz-=230*dt;k.z+=k.vz*dt;if(k.z<=g){if(k.vz<-40)k.squash=Math.min(1,-k.vz/140);if(k.isPlayer&&k.vz<-70){shake=Math.max(shake,0.15);sfx.bump();}k.z=g;k.onGround=true;k.vz=0;}}
  // water
  const c2=cellAt(k.x,k.y);
  if(surf[c2]===2&&k.onGround){k.ko=1.1;k.drown=true;k.koX=k.x;k.koY=k.y;k.koZ=k.z;k.speed=0;
@@ -622,7 +710,7 @@ function updateProjectiles(dt){
    if(rnd()<0.9)addP(p.x-Math.cos(p.a)*3,p.y-Math.sin(p.a)*3,p.z,(rnd()-0.5)*10,(rnd()-0.5)*10,5,'fire',rnd()<0.5?rgb(255,220,90):rgb(255,140,60),0.8,0.25);}
   if(p.speed>0){p.x+=Math.cos(p.a)*p.speed*dt;p.y+=Math.sin(p.a)*p.speed*dt;
    const pc=cellAt(p.x,p.y);
-   if(tdist[pc]>WALL_IN-0.5){const nr=tnear[pc];let wx=p.x-TX[nr],wy=p.y-TY[nr];const wl=Math.hypot(wx,wy)||1;wx/=wl;wy/=wl;
+   if(tdist[pc]>WALL_IN-0.5&&!gapM[pc]){const nr=tnear[pc];let wx=p.x-TX[nr],wy=p.y-TY[nr];const wl=Math.hypot(wx,wy)||1;wx/=wl;wy/=wl;
     if(p.type==='saw'){const dx=Math.cos(p.a),dy=Math.sin(p.a),vn=dx*wx+dy*wy;if(vn>0){p.a=Math.atan2(dy-2*vn*wy,dx-2*vn*wx);p.bounces=(p.bounces||0)+1;
       sparkle(p.x,p.y,p.z,8,[rgb(255,230,120),rgb(255,255,255)]);if(p.bounces>4)p.life=0;else if(vol(p.x,p.y)>0.2)sfx.bump();}
      p.x=TX[nr]+wx*(WALL_IN-0.6);p.y=TY[nr]+wy*(WALL_IN-0.6);}
@@ -691,25 +779,26 @@ function renderTerrain(){YB.fill(H);const fx=cam.fx,fy=cam.fy,rx=cam.rx,ry=cam.r
   z+=dz;dz*=1.012;}}
 let PZ=0,PX=0,PY=0,PINV=0;
 function project(x,y,z){const dx=x-cam.x,dy=y-cam.y;PZ=dx*cam.fx+dy*cam.fy;if(PZ<1.5)return false;PINV=SCALE/PZ;PX=W/2+(dx*cam.rx+dy*cam.ry)*PINV;PY=(cam.h-z)*PINV+cam.hor;return true;}
-function blit(spr,zf,sx,sb,pw,flip){const DIST=viewDist;const ph=pw*spr.h/spr.w;const x0=Math.round(sx-pw/2),y0=Math.round(sb-ph),x1=Math.round(sx+pw/2),y1=Math.round(sb);
+function blit(spr,zf,sx,sb,pw,flip,hs){const DIST=viewDist;const ph=pw*spr.h/spr.w*(hs||1);const x0=Math.round(sx-pw/2),y0=Math.round(sb-ph),x1=Math.round(sx+pw/2),y1=Math.round(sb);
  if(x1<=0||x0>=W||y1<=0||y0>=H||x1<=x0||y1<=y0)return;const sw=spr.w,data=spr.data,du=sw/(x1-x0),dv=spr.h/(y1-y0),zt=zf-1.5;
  let f=(zf-FOGS)/(DIST-FOGS);f=f<0?0:f>1?1:f;
  const xs=Math.max(0,x0),xe=Math.min(W,x1),ys=Math.max(0,y0),ye=Math.min(H,y1);
  for(let y=ys;y<ye;y++){const row=((y-y0)*dv|0)*sw;let p=y*W+xs;
   for(let x=xs;x<xe;x++,p++){if(depth[p]<zt)continue;let u=((x-x0)*du)|0;if(flip)u=sw-1-u;let c=data[row+u];if(c){if(f>0)c=fogMix(c,f);buf[p]=c;depth[p]=zf;}}}}
 function renderSprites(){const list=[];
- const add=(spr,x,y,z,w,flip,bias)=>{if(project(x,y,z))list.push({spr,zf:PZ-(bias||0),z:PZ,sx:PX,sb:PY,pw:w*PINV,flip});};
+ const add=(spr,x,y,z,w,flip,bias,hs)=>{if(project(x,y,z))list.push({spr,zf:PZ-(bias||0),z:PZ,sx:PX,sb:PY,pw:w*PINV,flip,hs});};
  for(const k of racers){
   if(k.ko>0){if(k.drown)continue;const R=SPR.racer[k.sp.idx];add(GORE?R.wreck:R.wreckClean,k.koX,k.koY,k.koZ,6.5);add(SPR.ghost,k.koX,k.koY,k.koZ+(1.9-k.ko)*10+4,4.5,false,0.2);continue;}
   if(k.invuln>0&&Math.floor(T*16)%2)continue;
-  const vA=k.a+k.spinA,rel=angDiff(Math.atan2(k.y-cam.y,k.x-cam.x),vA),ar=Math.abs(rel),R=SPR.racer[k.sp.idx];
-  const spr=ar<0.785?R.back:(ar>2.36?R.front:R.side);const bob=k.onGround&&Math.abs(k.speed)>5?Math.sin(T*30+k.idx)*0.15:0;
-  add(spr,k.x,k.y,k.z+bob,6.5,spr===R.side&&rel<0);
+  const vA=k.a+k.spinA+k.driftVis,rel=angDiff(Math.atan2(k.y-cam.y,k.x-cam.x),vA),flip=rel<0;
+  const ai=Math.min(8,Math.round(Math.abs(rel)/(Math.PI/8)));let st=k.spin>0?0:k.steerVis;if(flip)st=-st;const si=st<-0.3?0:(st>0.3?2:1);
+  const bob=k.onGround&&Math.abs(k.speed)>5?Math.sin(T*30+k.idx)*0.12:0,sq=k.squash;
+  add(SPR.kart[k.sp.idx][ai][si],k.x,k.y,k.z+bob,7.2*(1+sq*0.12),flip,0,1-sq*0.22);
   if(k.shield>0&&(k.shield>2||Math.floor(T*10)%2))add(SPR.shield,k.x,k.y,k.z-1,8.5,false,0.3);}
  boxes.forEach((b,i)=>{if(b.active)add(SPR.box[Math.abs(Math.floor(T*8+i))%9],b.x,b.y,b.z+2+Math.sin(T*3+b.ph)*0.6,4);});
  for(const p of projectiles){if(p.type==='rocket')add(SPR.rocket,p.x,p.y,p.z-1.5,3.6);else if(p.type==='saw')add(SPR.saw[Math.floor(T*20)%2],p.x,p.y,p.z-2,4);
   else if(p.type==='mine')add(SPR.mine[Math.floor(T*4)%2],p.x,p.y,p.z,3.8);else add(SPR.slime,p.x,p.y,p.z-0.3,7);}
- list.sort((a,b)=>b.zf-a.zf);for(const s of list)blit(s.spr,s.z,s.sx,s.sb,s.pw,s.flip);
+ list.sort((a,b)=>b.zf-a.zf);for(const s of list)blit(s.spr,s.z,s.sx,s.sb,s.pw,s.flip,s.hs);
  // particles
  for(const p of particles){if(!project(p.x,p.y,p.z))continue;if(PZ<5)continue;const s=Math.max(1,Math.min(7,Math.round(p.size*PINV)));const x0=(PX-s/2)|0,y0=(PY-s/2)|0,zt=PZ-3;
   let col=p.col;if(p.type==='confetti'||p.type==='spark'||p.type==='fire'){if(p.life<p.max*0.3&&((x0+y0+(T*30|0))&1))continue;}
@@ -775,7 +864,7 @@ function showResults(){if(state==='results')return;state='results';
  document.getElementById('results').classList.remove('hidden');}
 function toMenu(){state='menu';paused=false;document.getElementById('pause').classList.add('hidden');document.getElementById('results').classList.add('hidden');document.getElementById('menu').classList.remove('hidden');cmap.set(cmap0);particles=[];projectiles=[];screenBlood=[];racers=[];}
 function buildMenu(){const ch=document.getElementById('chars');ch.innerHTML='';
- SPECIES.forEach((sp,i)=>{const d=document.createElement('div');d.className='card'+(i===selected?' sel':'');d.innerHTML=`<img src="${SPR.racer[i].front.canvas.toDataURL()}" alt="${sp.name}"><b>${sp.name}</b>`;
+ SPECIES.forEach((sp,i)=>{const d=document.createElement('div');d.className='card'+(i===selected?' sel':'');d.innerHTML=`<img src="${SPR.kart[i][7][1].canvas.toDataURL()}" alt="${sp.name}"><b>${sp.name}</b>`;
   d.onclick=()=>{selected=i;document.querySelectorAll('.card').forEach((c,j)=>c.classList.toggle('sel',j===i));};ch.appendChild(d);});
  const lg=document.getElementById('legend');lg.innerHTML=ITEMS.map(it=>`<div><img src="${ICON[it].toDataURL()}" alt=""><span><b>${ITEM_NAME[it]}</b>${GORY[it]?' <span class="gore">✚ gore</span>':''}<br><small>${ITEM_DESC[it]}</small></span></div>`).join('');}
 document.querySelectorAll('#goreSeg button').forEach(b=>b.onclick=()=>{GORE=+b.dataset.g;document.querySelectorAll('#goreSeg button').forEach(x=>x.classList.toggle('on',x===b));});
