@@ -74,15 +74,26 @@ body.touch .keyhelp{display:none}
  table{font-size:13px}td,th{padding:3px 10px}td img{width:22px;height:22px}h2{font-size:22px}
 }
 #pause{z-index:12}
+#crt{position:absolute;pointer-events:none;display:none;overflow:hidden;--sl:3px;
+ background:radial-gradient(ellipse at center,rgba(0,0,0,0) 58%,rgba(0,0,0,.42) 100%);
+ box-shadow:inset 0 0 6vmin 1.5vmin rgba(0,0,0,.55),inset 0 0 0 2px rgba(0,0,0,.6);border-radius:3%/5%;will-change:transform;transform:translateZ(0)}
+#crt::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(to bottom,rgba(0,0,0,0) 0,rgba(0,0,0,0) 45%,rgba(0,0,0,.32) 70%,rgba(0,0,0,0) 100%);background-size:100% var(--sl)}
+#crt::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(to right,rgba(255,40,40,.07) 0 1px,rgba(40,255,90,.06) 1px 2px,rgba(60,90,255,.07) 2px 3px)}
+#crt .roll{position:absolute;left:0;right:0;height:18%;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(255,255,255,.045),rgba(255,255,255,0));animation:crtroll 7s linear infinite}
+@keyframes crtroll{from{transform:translateY(-120%)}to{transform:translateY(620%)}}
+body.crt #crt{display:block}
+body.crt #game,body.crt #hud{border-radius:3%/5%}
+#crt .roll{will-change:transform}
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="game"></canvas><canvas id="hud"></canvas></div>
+<div id="wrap"><canvas id="game"></canvas><canvas id="hud"></canvas><div id="crt"><div class="roll"></div></div></div>
 
 <div id="menu" class="overlay">
   <h1>Carnage Karts</h1>
   <p class="tag">Six cute critters. Three laps. A very messy finish.</p>
   <div id="chars"></div>
+  <div class="segrow">CRT filter: <span class="seg" id="crtSeg"><button data-c="0">Off</button><button data-c="1" class="on">On</button></span></div>
   <div class="segrow">Gore: <span class="seg" id="goreSeg"><button data-g="0">Off</button><button data-g="1" class="on">On</button><button data-g="2">Extra</button></span></div>
   <div class="segrow touchonly">Steering: <span class="seg" id="steerSeg"><button data-s="0" class="on">Buttons</button><button data-s="1">Tilt</button></span></div>
   <div class="segrow touchonly">Auto-gas: <span class="seg" id="gasSeg"><button data-a="1" class="on">On</button><button data-a="0">Off</button></span></div>
@@ -90,7 +101,7 @@ body.touch .keyhelp{display:none}
   <div class="btnrow"><button class="btn" id="startBtn">Start Race</button><button class="btn alt touchonly" id="fsBtn">Fullscreen</button></div>
   <div class="legend" id="legend"></div>
   <div class="help touchonly" style="justify-content:center">Tap ITEM to fire · hold DRIFT around corners for a boost · ⟲ re-centres tilt</div>
-  <div class="help keyhelp"><kbd>↑</kbd>/<kbd>W</kbd> gas · <kbd>↓</kbd>/<kbd>S</kbd> brake · <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> drift (hold for a mini-boost) · <kbd>Space</kbd> use item · <kbd>R</kbd> back to track · <kbd>P</kbd> pause · <kbd>M</kbd> mute<br>Tip: hold gas just as the countdown hits GO for a rocket start.</div>
+  <div class="help keyhelp"><kbd>↑</kbd>/<kbd>W</kbd> gas · <kbd>↓</kbd>/<kbd>S</kbd> brake · <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> drift (hold for a mini-boost) · <kbd>Space</kbd> use item · <kbd>R</kbd> back to track · <kbd>P</kbd> pause · <kbd>M</kbd> mute · <kbd>V</kbd> CRT filter<br>Tip: hold gas just as the countdown hits GO for a rocket start.</div>
 </div>
 
 <div id="results" class="overlay hidden">
@@ -156,7 +167,7 @@ const hud=document.getElementById('hud');const hc=hud.getContext('2d');
 let HW=1,HH=1;
 function resize(){setRes(clamp(Math.round(H*innerWidth/innerHeight/2)*2,400,500));const s=Math.min(innerWidth/W,innerHeight/H);const cw=Math.floor(W*s),ch=Math.floor(H*s);
  cv.style.width=cw+'px';cv.style.height=ch+'px';const d=Math.min(window.devicePixelRatio||1,2);
- hud.style.width=cw+'px';hud.style.height=ch+'px';hud.width=Math.round(cw*d);hud.height=Math.round(ch*d);HW=hud.width;HH=hud.height;}
+ hud.style.width=cw+'px';hud.style.height=ch+'px';const crt=document.getElementById('crt');crt.style.width=cw+'px';crt.style.height=ch+'px';crt.style.setProperty('--sl',(ch/H*2)+'px');hud.width=Math.round(cw*d);hud.height=Math.round(ch*d);HW=hud.width;HH=hud.height;}
 addEventListener('resize',resize);resize();
 
 // ======================================================= world
@@ -820,7 +831,10 @@ function renderSprites(){const list=[];
   for(let yy=0;yy<s;yy++){const y=y0+yy;if(y<0||y>=H)continue;for(let xx=0;xx<s;xx++){const x=x0+xx;if(x<0||x>=W)continue;const q=y*W+x;if(depth[q]<zt)continue;
    let c=col;if(s>=3){const cx=xx-(s>>1),cy=yy-(s>>1);if(p.type==='eye'&&Math.abs(cx)<=s/5&&Math.abs(cy)<=s/5)c=rgb(30,20,40);else if(p.type==='gib'&&cx===0&&cy===0)c=BLOOD[0];}
    buf[q]=c;}}}}
-function render(){renderSky();renderTerrain();renderSprites();ctx.putImageData(img,0,0);drawHUD();}
+const CRT_LUT=new Uint8Array(256);for(let v=0;v<256;v++){const x=v/255;CRT_LUT[v]=clamp(Math.round(255*(((x-0.5)*1.12+0.5)*1.05)),0,255);}
+function crtPass(){const n=W*H,f=0.985+Math.random()*0.015;for(let i=0;i<n;i++){const c=buf[i];let r=CRT_LUT[c&255],g=CRT_LUT[(c>>8)&255],b=CRT_LUT[(c>>16)&255];
+ const l=(r+g+b)/3;r=l+(r-l)*1.18;g=l+(g-l)*1.18;b=l+(b-l)*1.18;buf[i]=(0xFF000000|((clamp(b*f,0,255)|0)<<16)|((clamp(g*f,0,255)|0)<<8)|(clamp(r*f,0,255)|0))>>>0;}}
+function render(){renderSky();renderTerrain();renderSprites();if(document.body.classList.contains('crt'))crtPass();ctx.putImageData(img,0,0);drawHUD();}
 
 // ======================================================= HUD
 function txt(s,x,y,size,align,col,u){hc.font=`700 ${size}px Fredoka, system-ui, sans-serif`;hc.textAlign=align||'left';hc.textBaseline='alphabetic';
@@ -893,7 +907,7 @@ function togglePause(){if(state==='menu'||state==='results')return;paused=!pause
 // ======================================================= input
 const keys={},touch={};let itemPressed=false;
 addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
- if(!e.repeat){if(state==='countdown'&&(e.code==='ArrowUp'||e.code==='KeyW'))gasPressCd=cd;if(e.code==='Space'||e.code==='KeyX'||e.code==='KeyE')itemPressed=true;if(e.code==='KeyP'||e.code==='Escape')togglePause();if(e.code==='KeyM'){muted=!muted;}
+ if(!e.repeat){if(state==='countdown'&&(e.code==='ArrowUp'||e.code==='KeyW'))gasPressCd=cd;if(e.code==='Space'||e.code==='KeyX'||e.code==='KeyE')itemPressed=true;if(e.code==='KeyP'||e.code==='Escape')togglePause();if(e.code==='KeyM'){muted=!muted;}if(e.code==='KeyV')setCRT(!document.body.classList.contains('crt'));
   if(e.code==='KeyR'&&state==='race'&&player&&player.ko<=0&&!paused)respawn(player);
   if(e.code==='Enter'&&state==='menu')document.getElementById('startBtn').click();}
  keys[e.code]=true;});
@@ -913,6 +927,9 @@ document.querySelectorAll('#touch button').forEach(b=>{const k=b.dataset.k;
  b.addEventListener('pointerdown',e=>{e.preventDefault();try{b.setPointerCapture(e.pointerId);}catch(_){}b.classList.add('on');if(k==='C'){gyro.zero=gyro.raw;return;}if(k==='I')itemPressed=true;else{if(k==='G'&&state==='countdown'&&!touch.G)gasPressCd=cd;touch[k]=true;}});
  for(const ev of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(ev,()=>{touch[k]=false;b.classList.remove('on');});});
 
+function setCRT(on){document.body.classList.toggle('crt',on);document.querySelectorAll('#crtSeg button').forEach(b=>b.classList.toggle('on',(b.dataset.c==='1')===on));try{localStorage.setItem('ck_crt',on?'1':'0');}catch(e){}}
+document.querySelectorAll('#crtSeg button').forEach(b=>b.onclick=()=>setCRT(b.dataset.c==='1'));
+{let v='1';try{v=localStorage.getItem('ck_crt')||'1';}catch(e){}setCRT(v==='1');}
 // ======================================================= boot
 genWorld(20261112);buildSprites();buildMenu();
 let last=performance.now();
