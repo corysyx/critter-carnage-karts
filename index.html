@@ -83,6 +83,7 @@ body.touch .keyhelp{display:none}
 @keyframes crtroll{from{transform:translateY(-120%)}to{transform:translateY(620%)}}
 body.crt #crt{display:block}
 body.crt #game,body.crt #hud{border-radius:3%/5%}
+body.aa #game{image-rendering:auto}
 #crt .roll{will-change:transform}
 </style>
 </head>
@@ -93,6 +94,7 @@ body.crt #game,body.crt #hud{border-radius:3%/5%}
   <h1>Carnage Karts</h1>
   <p class="tag">Six cute critters. Three laps. A very messy finish.</p>
   <div id="chars"></div>
+  <div class="segrow">Anti-aliasing: <span class="seg" id="aaSeg"><button data-a="0">Off</button><button data-a="1" class="on">On</button></span></div>
   <div class="segrow">CRT filter: <span class="seg" id="crtSeg"><button data-c="0">Off</button><button data-c="1" class="on">On</button></span></div>
   <div class="segrow">Gore: <span class="seg" id="goreSeg"><button data-g="0">Off</button><button data-g="1" class="on">On</button><button data-g="2">Extra</button></span></div>
   <div class="segrow touchonly">Steering: <span class="seg" id="steerSeg"><button data-s="0" class="on">Buttons</button><button data-s="1">Tilt</button></span></div>
@@ -101,7 +103,7 @@ body.crt #game,body.crt #hud{border-radius:3%/5%}
   <div class="btnrow"><button class="btn" id="startBtn">Start Race</button><button class="btn alt touchonly" id="fsBtn">Fullscreen</button></div>
   <div class="legend" id="legend"></div>
   <div class="help touchonly" style="justify-content:center">Tap ITEM to fire · hold DRIFT around corners for a boost · ⟲ re-centres tilt</div>
-  <div class="help keyhelp"><kbd>↑</kbd>/<kbd>W</kbd> gas · <kbd>↓</kbd>/<kbd>S</kbd> brake · <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> drift (hold for a mini-boost) · <kbd>Space</kbd> use item · <kbd>R</kbd> back to track · <kbd>P</kbd> pause · <kbd>M</kbd> mute · <kbd>V</kbd> CRT filter<br>Tip: hold gas just as the countdown hits GO for a rocket start.</div>
+  <div class="help keyhelp"><kbd>↑</kbd>/<kbd>W</kbd> gas · <kbd>↓</kbd>/<kbd>S</kbd> brake · <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> drift (hold for a mini-boost) · <kbd>Space</kbd> use item · <kbd>R</kbd> back to track · <kbd>P</kbd> pause · <kbd>M</kbd> mute · <kbd>V</kbd> CRT filter · <kbd>B</kbd> anti-aliasing<br>Tip: hold gas just as the countdown hits GO for a rocket start.</div>
 </div>
 
 <div id="results" class="overlay hidden">
@@ -160,12 +162,14 @@ let viewDist=520;
 // ======================================================= canvases
 const cv=document.getElementById('game');
 const ctx=cv.getContext('2d');
+const lo=document.createElement('canvas'),lctx=lo.getContext('2d');let upN=1,aaOn=true;
 let img,buf,depth,YB,COLOFF,mat;
-function setRes(nw){if(nw===W&&img)return;W=nw;K=(W/2)/SCALE;cv.width=W;cv.height=H;img=ctx.createImageData(W,H);buf=new Uint32Array(img.data.buffer);depth=new Float32Array(W*H);YB=new Int32Array(W);mat=new Uint8Array(W*H);
+function setRes(nw){if(nw===W&&img)return;W=nw;K=(W/2)/SCALE;lo.width=W;lo.height=H;img=lctx.createImageData(W,H);buf=new Uint32Array(img.data.buffer);depth=new Float32Array(W*H);YB=new Int32Array(W);mat=new Uint8Array(W*H);
  COLOFF=new Float32Array(W);for(let i=0;i<W;i++)COLOFF[i]=Math.atan(((i+0.5)-W/2)/(W/2)*K);}
 const hud=document.getElementById('hud');const hc=hud.getContext('2d');
 let HW=1,HH=1;
 function resize(){setRes(clamp(Math.round(H*innerWidth/innerHeight/2)*2,400,500));const s=Math.min(innerWidth/W,innerHeight/H);const cw=Math.floor(W*s),ch=Math.floor(H*s);
+ upN=aaOn?clamp(Math.floor(cw*(window.devicePixelRatio||1)/W),1,4):1;if(cv.width!==W*upN||cv.height!==H*upN){cv.width=W*upN;cv.height=H*upN;}
  cv.style.width=cw+'px';cv.style.height=ch+'px';const d=Math.min(window.devicePixelRatio||1,2);
  hud.style.width=cw+'px';hud.style.height=ch+'px';const crt=document.getElementById('crt');crt.style.width=cw+'px';crt.style.height=ch+'px';crt.style.setProperty('--sl',(ch/H*2)+'px');hud.width=Math.round(cw*d);hud.height=Math.round(ch*d);HW=hud.width;HH=hud.height;}
 addEventListener('resize',resize);resize();
@@ -848,7 +852,19 @@ function inkPass(){const n=W*H,DI=viewDist,NEAR=DI*0.6;INK.fill(0,0,n);
   if((a!==m&&a!==255&&depth[p-W]<1e8)||(l!==m&&l!==255))INK[p]=2;}}
  for(let p=0;p<n;p++){if(!INK[p])continue;const k=INK[p]===1?clamp(1-depth[p]/(DI*0.85),0,1)*0.85:clamp(1-depth[p]/NEAR,0,1)*0.8;if(k<=0.05)continue;const c=buf[p];
   buf[p]=(0xFF000000|((((c>>16)&255)*(1-k)+48*k)<<16)|((((c>>8)&255)*(1-k)+24*k)<<8)|(((c&255)*(1-k)+42*k)|0))>>>0;}}
-function render(){renderSky();renderTerrain();renderSprites();if(inkOn)inkPass();if(document.body.classList.contains('crt'))crtPass();ctx.putImageData(img,0,0);drawHUD();}
+// FXAA-style edge smoothing on the low-res frame: only high-contrast edge pixels are touched
+const OUTC=rgb(42,24,48);let AAL=new Uint8Array(500*225),AAS=new Uint32Array(500*225);
+function aaPass(){const n=W*H,L=AAL,S=AAS;S.set(buf.subarray(0,n));
+ for(let i=0;i<n;i++){const c=S[i];L[i]=((c&255)*77+((c>>8)&255)*150+((c>>16)&255)*29)>>8;}
+ for(let y=1;y<H-1;y++){let p=y*W+1;for(let x=1;x<W-1;x++,p++){const m=L[p],nN=L[p-W],nS=L[p+W],nE=L[p+1],nW=L[p-1];
+  let mx=m,mn=m;if(nN>mx)mx=nN;if(nS>mx)mx=nS;if(nE>mx)mx=nE;if(nW>mx)mx=nW;if(nN<mn)mn=nN;if(nS<mn)mn=nS;if(nE<mn)mn=nE;if(nW<mn)mn=nW;
+  if(INK[p]||S[p]===OUTC)continue;const rg=mx-mn;if(rg<28||rg<mx*0.14)continue;
+  const horiz=Math.abs(nN+nS-2*m)>=Math.abs(nE+nW-2*m);let q;
+  if(horiz)q=Math.abs(nN-m)>Math.abs(nS-m)?p-W:p+W;else q=Math.abs(nW-m)>Math.abs(nE-m)?p-1:p+1;
+  let b=Math.abs((nN+nS+nE+nW)*0.25-m)/rg;b=b*b*0.4+0.1;if(b>0.33)b=0.33;
+  const a=S[p],o=S[q];buf[p]=(0xFF000000|((((a>>16)&255)+((((o>>16)&255)-((a>>16)&255))*b))<<16)|((((a>>8)&255)+((((o>>8)&255)-((a>>8)&255))*b))<<8)|(((a&255)+(((o&255)-(a&255))*b))|0))>>>0;}}}
+function setAA(on){aaOn=on;setTimeout(resize,0);document.body.classList.toggle('aa',on);document.querySelectorAll('#aaSeg button').forEach(b=>b.classList.toggle('on',(b.dataset.a==='1')===on));try{localStorage.setItem('ck_aa',on?'1':'0');}catch(e){}}
+function render(){renderSky();renderTerrain();renderSprites();if(inkOn)inkPass();if(aaOn)aaPass();if(document.body.classList.contains('crt'))crtPass();lctx.putImageData(img,0,0);ctx.imageSmoothingEnabled=false;ctx.drawImage(lo,0,0,cv.width,cv.height);drawHUD();}
 
 // ======================================================= HUD
 function txt(s,x,y,size,align,col,u){hc.font=`700 ${size}px Fredoka, system-ui, sans-serif`;hc.textAlign=align||'left';hc.textBaseline='alphabetic';
@@ -921,7 +937,7 @@ function togglePause(){if(state==='menu'||state==='results')return;paused=!pause
 // ======================================================= input
 const keys={},touch={};let itemPressed=false;
 addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
- if(!e.repeat){if(state==='countdown'&&(e.code==='ArrowUp'||e.code==='KeyW'))gasPressCd=cd;if(e.code==='Space'||e.code==='KeyX'||e.code==='KeyE')itemPressed=true;if(e.code==='KeyP'||e.code==='Escape')togglePause();if(e.code==='KeyM'){muted=!muted;}if(e.code==='KeyV')setCRT(!document.body.classList.contains('crt'));
+ if(!e.repeat){if(state==='countdown'&&(e.code==='ArrowUp'||e.code==='KeyW'))gasPressCd=cd;if(e.code==='Space'||e.code==='KeyX'||e.code==='KeyE')itemPressed=true;if(e.code==='KeyP'||e.code==='Escape')togglePause();if(e.code==='KeyM'){muted=!muted;}if(e.code==='KeyB')setAA(!aaOn);if(e.code==='KeyV')setCRT(!document.body.classList.contains('crt'));
   if(e.code==='KeyR'&&state==='race'&&player&&player.ko<=0&&!paused)respawn(player);
   if(e.code==='Enter'&&state==='menu')document.getElementById('startBtn').click();}
  keys[e.code]=true;});
@@ -944,6 +960,8 @@ document.querySelectorAll('#touch button').forEach(b=>{const k=b.dataset.k;
 function setCRT(on){document.body.classList.toggle('crt',on);document.querySelectorAll('#crtSeg button').forEach(b=>b.classList.toggle('on',(b.dataset.c==='1')===on));try{localStorage.setItem('ck_crt',on?'1':'0');}catch(e){}}
 document.querySelectorAll('#crtSeg button').forEach(b=>b.onclick=()=>setCRT(b.dataset.c==='1'));
 {let v='1';try{v=localStorage.getItem('ck_crt')||'1';}catch(e){}setCRT(v==='1');}
+document.querySelectorAll('#aaSeg button').forEach(b=>b.onclick=()=>setAA(b.dataset.a==='1'));
+{let v='1';try{v=localStorage.getItem('ck_aa')||'1';}catch(e){}setAA(v==='1');}
 // ======================================================= boot
 genWorld(20261112);buildSprites();buildMenu();
 let last=performance.now();
