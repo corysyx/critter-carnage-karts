@@ -53,10 +53,18 @@ body.racing #touch.on{display:flex}
 #touch button.big{width:84px;height:84px;background:#ff4f8b80;font-size:17px}
 #touch button.sm{width:54px;height:54px;font-size:12px}
 #touch .stack{flex-direction:column;gap:10px}
-body.tilt #touch .steer{display:none}
+#joy{position:fixed;left:0;top:0;bottom:0;width:50%;z-index:4;display:none;touch-action:none}
+body.touch.racing #joy{display:block}
+#joy .base,#joy .knob{position:absolute;border-radius:50%;pointer-events:none;display:none;transform:translate(-50%,-50%)}
+#joy .base{width:120px;height:120px;border:3px solid #ffffff70;background:#2a183040}
+#joy .knob{width:54px;height:54px;background:#ffffffaa;border:3px solid #2a1830aa}
+#joy.on .base,#joy.on .knob{display:block}
+#slotTap{position:fixed;z-index:7;display:none}
+body.racing #slotTap{display:flex}
+#slotTap div{flex:1;cursor:pointer}
 #touch .recenter{display:none}
 body.tilt #touch .recenter{display:block}
-#pauseTouch{position:fixed;top:max(8px,env(safe-area-inset-top));left:calc(50% + 46px);z-index:6;display:none;width:40px;height:40px;border-radius:50%;border:2px solid #ffffff80;background:#2a183055;color:#fff;font:700 14px Fredoka,sans-serif;padding:0}
+#pauseTouch{position:fixed;top:max(8px,env(safe-area-inset-top));left:calc(50% + 46px);z-index:8;display:none;width:40px;height:40px;border-radius:50%;border:2px solid #ffffff80;background:#2a183055;color:#fff;font:700 14px Fredoka,sans-serif;padding:0}
 body.touch.racing #pauseTouch{display:block}
 .touchonly{display:none!important}
 body.touch .touchonly{display:flex!important}
@@ -97,13 +105,12 @@ body.aa #game{image-rendering:auto}
   <div class="segrow">Anti-aliasing: <span class="seg" id="aaSeg"><button data-a="0">Off</button><button data-a="1" class="on">On</button></span></div>
   <div class="segrow">CRT filter: <span class="seg" id="crtSeg"><button data-c="0">Off</button><button data-c="1" class="on">On</button></span></div>
   <div class="segrow">Gore: <span class="seg" id="goreSeg"><button data-g="0">Off</button><button data-g="1" class="on">On</button><button data-g="2">Extra</button></span></div>
-  <div class="segrow touchonly">Steering: <span class="seg" id="steerSeg"><button data-s="0" class="on">Buttons</button><button data-s="1">Tilt</button></span></div>
-  <div class="segrow touchonly">Auto-gas: <span class="seg" id="gasSeg"><button data-a="1" class="on">On</button><button data-a="0">Off</button></span></div>
+  <div class="segrow touchonly">Steering: <span class="seg" id="steerSeg"><button data-s="0" class="on">Joystick</button><button data-s="1">Tilt</button></span></div>
   <div id="tiltNote" class="note hidden"></div>
   <div class="btnrow"><button class="btn" id="startBtn">Start Race</button><button class="btn alt touchonly" id="fsBtn">Fullscreen</button></div>
   <div class="legend" id="legend"></div>
-  <div class="help touchonly" style="justify-content:center">Tap ITEM to fire · hold DRIFT around corners for a boost · ⟲ re-centres tilt</div>
-  <div class="help keyhelp"><kbd>↑</kbd>/<kbd>W</kbd> gas · <kbd>↓</kbd>/<kbd>S</kbd> brake · <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> drift (hold for a mini-boost) · <kbd>Space</kbd> use item · <kbd>R</kbd> back to track · <kbd>P</kbd> pause · <kbd>M</kbd> mute · <kbd>V</kbd> CRT filter · <kbd>B</kbd> anti-aliasing<br>Tip: hold gas just as the countdown hits GO for a rocket start.</div>
+  <div class="help touchonly" style="justify-content:center">Karts drive themselves · touch the left side to steer · ITEM fires, tap the slots up top to swap · hold DRIFT round corners</div>
+  <div class="help keyhelp"><kbd>↑</kbd>/<kbd>W</kbd> gas · <kbd>↓</kbd>/<kbd>S</kbd> brake · <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> drift (hold for a mini-boost) · <kbd>Space</kbd> use item · <kbd>Q</kbd> swap item · <kbd>R</kbd> back to track · <kbd>P</kbd> pause · <kbd>M</kbd> mute · <kbd>V</kbd> CRT filter · <kbd>B</kbd> anti-aliasing<br>Tip: hold gas just as the countdown hits GO for a rocket start.</div>
 </div>
 
 <div id="results" class="overlay hidden">
@@ -114,7 +121,8 @@ body.aa #game{image-rendering:auto}
 
 <div id="pause" class="overlay hidden"><h2>Paused</h2><p class="tag">Press <kbd>P</kbd> to keep racing</p><div class="btnrow"><button class="btn" id="resumeBtn">Resume</button><button class="btn alt" id="quitBtn">Quit to Menu</button></div></div>
 
-<div id="touch"><div><button data-k="L" class="steer">◀</button><button data-k="R" class="steer">▶</button><button data-k="C" class="recenter sm">⟲</button></div><div><div class="stack"><button data-k="I">ITEM</button><button data-k="D" class="sm">DRIFT</button></div><button data-k="B" class="sm">BRAKE</button><button data-k="G" class="big">GAS</button></div></div>
+<div id="joy"><div class="base"></div><div class="knob"></div></div><div id="slotTap"><div data-s="0"></div><div data-s="1"></div></div>
+<div id="touch"><div><button data-k="C" class="recenter sm">⟲</button></div><div><button data-k="B" class="sm">BRAKE</button><button data-k="D">DRIFT</button><button data-k="I" class="big">ITEM</button></div></div>
 <button id="pauseTouch">II</button>
 <div id="rotate" class="overlay hidden"><div class="ph">📱</div><h2>Turn your phone sideways</h2><p class="tag">Carnage Karts plays in landscape.</p></div>
 
@@ -556,7 +564,7 @@ const cam={x:256,y:256,h:40,a:0,fx:1,fy:0,rx:0,ry:1,hor:H*0.36};
 function makeRacer(sp,isPlayer,slot){const s=(N-5-slot*4+N)%N;const lat=(slot%2?7:-7);
  const k={sp,isPlayer,x:TX[s]-TTY[s]*lat,y:TY[s]+TTX[s]*lat,z:TH[s],vz:0,onGround:true,a:Math.atan2(TTY[s],TTX[s]),speed:0,
   seg:s,lap:-1,half:false,prog:-5,finished:false,finishTime:null,ko:0,koX:0,koY:0,koZ:0,drown:false,spin:0,spinA:0,invuln:0,shield:0,boost:0,
-  item:null,pending:null,roulette:0,itemHeld:0,lapStart:0,lastLap:null,bestLap:null,kills:0,kos:0,bloodTires:0,offT:0,driftT:0,
+  items:[null,null],sel:0,pending:null,roulette:0,itemHeld:0,lapStart:0,lastLap:null,bestLap:null,kills:0,kos:0,bloodTires:0,offT:0,driftT:0,
   steerVis:0,driftVis:0,squash:0,skill:isPlayer?1:[0.9,0.94,0.92,0.96,0.89][slot%5],skillMul:1,laneOff:(rnd()-0.5)*20,aiT:rnd()*2,stuckT:0,stuckRev:0,rank:slot,idx:slot};
  return k;}
 
@@ -622,7 +630,12 @@ function respawn(k){const s=k.seg;k.x=TX[s];k.y=TY[s];k.z=TH[s];k.vz=0;k.onGroun
  if(k.isPlayer){cam.a=k.a;}}
 function rollItem(rank){const t=rank/5;const w={rocket:35*t,boost:6+26*t,saw:15+6*t,shield:20-10*t,mine:30-25*t,slime:30-27*t};
  let s=0;for(const kk in w)s+=w[kk];let r=rnd()*s;for(const kk in w){r-=w[kk];if(r<=0)return kk;}return 'boost';}
-function useItem(k){const it=k.item;if(!it||k.roulette>0||k.ko>0)return;k.item=null;k.itemHeld=0;
+function curSlot(k){return k.items[k.sel]?k.sel:(k.items[1-k.sel]?1-k.sel:-1);}
+function curItem(k){const i=curSlot(k);return i<0?null:k.items[i];}
+function freeSlot(k){return k.items[0]==null?0:(k.items[1]==null?1:-1);}
+function swapSlot(k,to){if(to==null)to=1-k.sel;else if(to===k.sel)to=1-k.sel;k.sel=to;if(k.isPlayer)tone(520,.06,'triangle',.08);}
+function useItem(k){const si=curSlot(k);if(si<0||k.ko>0)return;const it=k.items[si];k.items[si]=null;k.itemHeld=0;
+ if(k.items[1-si])k.sel=1-si;
  const fx=Math.cos(k.a),fy=Math.sin(k.a);
  if(it==='rocket'){const ahead=order.filter(o=>o.rank<k.rank&&o.ko<=0&&!o.finished);const target=ahead.length?ahead[ahead.length-1]:null;
   projectiles.push({type:'rocket',x:k.x+fx*6,y:k.y+fy*6,z:k.z+3,a:k.a,speed:Math.max(k.speed,0)+115,owner:k,target,life:7,t:0});if(k.isPlayer||vol(k.x,k.y)>0.3)sfx.fire();}
@@ -635,7 +648,7 @@ const KILL_LINES=['turned you into jam!','popped you like a juice box!','made a 
 const SPLAT_LINES=['SPLAT! You turned {n} into jam!','SQUISH! {n} is now road paint!','KABLOOEY! Bye bye, {n}!','{n} went everywhere!'];
 const SOFT_LINES=['bonked you!','knocked you silly!','sent you seeing stars!'];
 function koKart(k,by,type,dirA){
- k.ko=1.9;k.koX=k.x;k.koY=k.y;k.koZ=k.z;k.speed=0;k.boost=0;k.item=null;k.roulette=0;k.shield=0;k.spin=0;k.drown=false;k.kos++;if(by&&by!==k)by.kills++;
+ k.ko=1.9;k.koX=k.x;k.koY=k.y;k.koZ=k.z;k.speed=0;k.boost=0;k.items=[null,null];k.roulette=0;k.shield=0;k.spin=0;k.drown=false;k.kos++;if(by&&by!==k)by.kills++;
  spawnGore(k.x,k.y,k.z+3,k.sp,dirA);if(type==='rocket'||type==='mine')explosion(k.x,k.y,k.z+3);
  const v=k.isPlayer?1:vol(k.x,k.y);if(v>0.05){sfx.splat(v);if(type!=='saw')sfx.boom(v*0.6);}
  const who=by&&by!==k?by.sp.name+"'s "+ITEM_NAME[type]:'Your own '+ITEM_NAME[type];
@@ -650,8 +663,8 @@ function hitKart(k,p){if(k.invuln>0||k.ko>0)return false;
  koKart(k,p.owner,p.type,p.a);return true;}
 
 function playerInput(){const up=keys.ArrowUp||keys.KeyW||touch.G,dn=keys.ArrowDown||keys.KeyS||touch.B,l=keys.ArrowLeft||keys.KeyA||touch.L,r=keys.ArrowRight||keys.KeyD||touch.R;
- let steer=(r?1:0)-(l?1:0);if(ctrl.tilt&&gyro.on&&Math.abs(gyro.val)>Math.abs(steer))steer=gyro.val;
- let thr=up?1:(dn?-1:0);if(touchOn&&ctrl.autoGas&&!dn)thr=1;
+ let steer=(r?1:0)-(l?1:0);if(joy.id!=null&&Math.abs(joy.v)>Math.abs(steer))steer=joy.v;if(ctrl.tilt&&gyro.on&&Math.abs(gyro.val)>Math.abs(steer))steer=gyro.val;
+ let thr=up?1:(dn?-1:0);if(touchOn&&!dn)thr=1;
  return {thr,steer,drift:!!(keys.ShiftLeft||keys.ShiftRight||keys.KeyC||touch.D)};}
 // ---- tilt steering: world 'up' vector projected into the screen plane -> roll angle (works in any orientation)
 const gyro={on:false,seen:false,raw:0,zero:0,val:0};
@@ -662,9 +675,9 @@ function onOrient(e){if(e.beta==null||e.gamma==null)return;gyro.seen=true;const 
 function tiltNote(text,ok){const n=document.getElementById('tiltNote');n.textContent=text;n.classList.toggle('ok',!!ok);n.classList.toggle('hidden',!text);}
 function setSteerMode(tilt){ctrl.tilt=tilt;document.body.classList.toggle('tilt',tilt);document.querySelectorAll('#steerSeg button').forEach(b=>b.classList.toggle('on',(+b.dataset.s===1)===tilt));}
 async function enableTilt(){
- if(typeof DeviceOrientationEvent==='undefined'){setSteerMode(false);tiltNote("This browser doesn't support tilt controls, so steering stays on buttons.");return;}
+ if(typeof DeviceOrientationEvent==='undefined'){setSteerMode(false);tiltNote("This browser doesn't support tilt controls, so steering stays on the joystick.");return;}
  try{if(typeof DeviceOrientationEvent.requestPermission==='function'){const r=await DeviceOrientationEvent.requestPermission();if(r!=='granted')throw new Error('denied');}}
- catch(e){setSteerMode(false);tiltNote("Motion access wasn't allowed, so steering stays on buttons. If you're viewing this inside Claude, open the game file in your phone's browser instead.");return;}
+ catch(e){setSteerMode(false);tiltNote("Motion access wasn't allowed, so steering stays on the joystick. If you're viewing this inside Claude, open the game file in your phone's browser instead.");return;}
  if(!gyro.on){addEventListener('deviceorientation',onOrient);gyro.on=true;}
  setSteerMode(true);tiltNote('Checking your phone\'s motion sensor…',true);
  setTimeout(()=>{if(gyro.seen)tiltNote('Tilt is on: hold your phone like a steering wheel. Tap ⟲ during a race to re-centre.',true);
@@ -679,7 +692,7 @@ function aiInput(k,dt){
  if(k.stuckRev>0){k.stuckRev-=dt;return {thr:-1,steer:d>0?-1:1};}
  if(Math.abs(k.speed)<5&&state!=='countdown'){k.stuckT+=dt;if(k.stuckT>1){k.stuckT=0;k.stuckRev=0.8;}}else k.stuckT=0;
  return {thr:(Math.abs(d)>1.2&&k.speed>40)?0:1,steer:clamp(d*2.4,-1,1),drift:false};}
-function aiItems(k,dt){if(!k.item||k.roulette>0)return;k.itemHeld+=dt;const it=k.item;let use=false;
+function aiItems(k,dt){const it=curItem(k);if(!it)return;k.itemHeld+=dt;let use=false;
  const fx=Math.cos(k.a),fy=Math.sin(k.a);
  if(it==='boost'||it==='shield')use=k.itemHeld>0.6;
  else if(it==='rocket')use=(k.itemHeld>1&&k.rank>0)||k.itemHeld>10;
@@ -689,7 +702,7 @@ function aiItems(k,dt){if(!k.item||k.roulette>0)return;k.itemHeld+=dt;const it=k
 
 function updateRacer(k,dt,inp){
  if(k.invuln>0)k.invuln-=dt;if(k.shield>0)k.shield-=dt;if(k.boost>0)k.boost-=dt;
- if(k.roulette>0){k.roulette-=dt;if(k.roulette<=0){k.roulette=0;k.item=k.pending;k.itemHeld=0;if(k.isPlayer)sfx.get();}}
+ if(k.roulette>0){k.roulette-=dt;if(k.roulette<=0){k.roulette=0;{const fs=freeSlot(k);if(fs>=0){k.items[fs]=k.pending;if(!k.items[k.sel])k.sel=fs;}}k.itemHeld=0;if(k.isPlayer)sfx.get();}}
  if(k.ko>0){k.ko-=dt;if(k.ko<=0)respawn(k);return;}
  let thr=inp.thr,st=inp.steer;
  if(k.spin>0){k.spin-=dt;thr=0;st=0;k.spinA+=16*dt;k.speed*=1-2.6*dt;if(k.spin<=0)k.spinA=0;}
@@ -762,7 +775,7 @@ function updateProjectiles(dt){
 }
 function updateBoxes(dt){for(const b of boxes){if(!b.active){b.t-=dt;if(b.t<=0)b.active=true;continue;}
  for(const k of racers){if(k.ko>0)continue;const dx=k.x-b.x,dy=k.y-b.y;if(dx*dx+dy*dy<36&&Math.abs(k.z-b.z)<8){b.active=false;b.t=3;sparkle(b.x,b.y,b.z+3,16);
-  if(!k.item&&k.roulette<=0){k.roulette=k.isPlayer?1.1:0.6;k.pending=rollItem(k.rank);if(k.isPlayer)sfx.pick();}break;}}}}
+  if(freeSlot(k)>=0&&k.roulette<=0){k.roulette=k.isPlayer?1.1:0.6;k.pending=rollItem(k.rank);if(k.isPlayer)sfx.pick();}break;}}}}
 function collideRacers(){for(let i=0;i<racers.length;i++){const a=racers[i];if(a.ko>0)continue;for(let j=i+1;j<racers.length;j++){const b=racers[j];if(b.ko>0)continue;
  const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;if(d2<16&&d2>0.0001&&Math.abs(a.z-b.z)<6){const d=Math.sqrt(d2),push=(4-d)/2,nx=dx/d,ny=dy/d;a.x-=nx*push;a.y-=ny*push;b.x+=nx*push;b.y+=ny*push;a.speed*=0.97;b.speed*=0.97;
   if((a.isPlayer||b.isPlayer)&&rnd()<0.2)sfx.bump();}}}}
@@ -886,11 +899,14 @@ function drawHUD(){const u=HH/225,CX=W/2,RX=W-10;hc.clearRect(0,0,HW,HH);hc.imag
  order.forEach((k,i)=>{const y=(62+i*11)*u;hc.drawImage(HEAD[k.sp.idx],9*u,y-9*u,11*u,11*u);txt(`${i+1}. ${k.sp.name}${k.ko>0&&!k.drown?' ☠':''}`,22*u,y,7.5*u,'left',k.isPlayer?'#ffe36e':'#fff');});
  const r=P.rank+1;txt(ord(r),RX*u,42*u,36*u,'right',RANKCOL[r-1]);txt(`of ${racers.length}`,RX*u,54*u,8*u,'right','#fff');
  // item slot
- const bx=CX*u-19*u,by=6*u,bs=38*u;hc.fillStyle='rgba(255,255,255,0.22)';hrr(bx,by,bs,bs,9*u);hc.fill();hc.lineWidth=2.5*u;hc.strokeStyle='rgba(255,255,255,0.85)';hc.stroke();
- let ic=null;if(P.roulette>0)ic=ICON[ITEMS[Math.floor(T*14)%6]];else if(P.item)ic=ICON[P.item];
- if(ic){const iw=ic.width,ih=ic.height,sc=Math.min(30/iw,30/ih)*u;hc.drawImage(ic,CX*u-iw*sc/2,by+bs/2-ih*sc/2,iw*sc,ih*sc);}
- if(P.item&&P.roulette<=0)txt(ITEM_NAME[P.item]+(touchOn?'':' — SPACE'),CX*u,by+bs+10*u,7*u,'center','#fff');
- if(P.shield>0)txt(`🫧 ${Math.ceil(P.shield)}s`,(CX+43)*u,26*u,8*u,'left','#9fe3ff');
+ const by=6*u,cs=curSlot(P),rs=P.roulette>0?freeSlot(P):-1;
+ for(let si=0;si<2;si++){const act=si===(cs<0?P.sel:cs),bs=(act?36:28)*u,bx=(CX+(si?21:-21))*u-bs/2,yy=by+(act?0:4*u);
+  hc.fillStyle=act?'rgba(255,227,110,0.28)':'rgba(255,255,255,0.16)';hrr(bx,yy,bs,bs,8*u);hc.fill();hc.lineWidth=(act?3:1.8)*u;hc.strokeStyle=act?'#ffe36e':'rgba(255,255,255,0.7)';hc.stroke();
+  let ic=null;if(si===rs)ic=ICON[ITEMS[Math.floor(T*14)%6]];else if(P.items[si])ic=ICON[P.items[si]];
+  if(ic){const iw=ic.width,ih=ic.height,sc=Math.min(bs*0.8/iw,bs*0.8/ih);hc.drawImage(ic,bx+bs/2-iw*sc/2,yy+bs/2-ih*sc/2,iw*sc,ih*sc);}
+  txt(String(si+1),bx+3*u,yy+bs-3*u,6*u,'left',act?'#ffe36e':'#fff');}
+ const ci=curItem(P);if(ci)txt(ITEM_NAME[ci]+(touchOn?'':' — SPACE')+(P.items[0]&&P.items[1]?(touchOn?' · tap to swap':' · Q swap'):''),CX*u,by+48*u,7*u,'center','#fff');
+ if(P.shield>0)txt(`🫧 shield ${Math.ceil(P.shield)}s`,CX*u,by+(ci?58:48)*u,7*u,'center','#9fe3ff');
  // minimap
  const ms=(touchOn?62:76)*u,mx=touchOn?HW-ms-8*u:8*u,my=touchOn?62*u:HH-ms-8*u;hc.globalAlpha=0.9;hc.drawImage(mini,mx,my,ms,ms);hc.globalAlpha=1;const f=ms/mini.width;
  for(const p of projectiles){if(p.speed>0)continue;const x=mx+(12+(p.x-mini.ox)*miniS)*f,y=my+(12+(p.y-mini.oy)*miniS)*f;hc.fillStyle=p.type==='mine'?'#ff3355':'#7be05a';hc.fillRect(x-1.5*u,y-1.5*u,3*u,3*u);}
@@ -937,7 +953,7 @@ function togglePause(){if(state==='menu'||state==='results')return;paused=!pause
 // ======================================================= input
 const keys={},touch={};let itemPressed=false;
 addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
- if(!e.repeat){if(state==='countdown'&&(e.code==='ArrowUp'||e.code==='KeyW'))gasPressCd=cd;if(e.code==='Space'||e.code==='KeyX'||e.code==='KeyE')itemPressed=true;if(e.code==='KeyP'||e.code==='Escape')togglePause();if(e.code==='KeyM'){muted=!muted;}if(e.code==='KeyB')setAA(!aaOn);if(e.code==='KeyV')setCRT(!document.body.classList.contains('crt'));
+ if(!e.repeat){if((e.code==='KeyQ'||e.code==='Tab')&&player&&state!=='menu'){e.preventDefault();swapSlot(player);}if(state==='countdown'&&(e.code==='ArrowUp'||e.code==='KeyW'))gasPressCd=cd;if(e.code==='Space'||e.code==='KeyX'||e.code==='KeyE')itemPressed=true;if(e.code==='KeyP'||e.code==='Escape')togglePause();if(e.code==='KeyM'){muted=!muted;}if(e.code==='KeyB')setAA(!aaOn);if(e.code==='KeyV')setCRT(!document.body.classList.contains('crt'));
   if(e.code==='KeyR'&&state==='race'&&player&&player.ko<=0&&!paused)respawn(player);
   if(e.code==='Enter'&&state==='menu')document.getElementById('startBtn').click();}
  keys[e.code]=true;});
@@ -946,8 +962,20 @@ addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 if(touchOn){document.getElementById('touch').classList.add('on');document.body.classList.add('touch');}
 addEventListener('contextmenu',e=>e.preventDefault());
 document.getElementById('pauseTouch').addEventListener('click',()=>togglePause());
+// floating joystick: touch anywhere on the left half, slide left/right to steer
+const joy={id:null,x0:0,y0:0,v:0},joyEl=document.getElementById('joy'),joyB=joyEl.querySelector('.base'),joyK=joyEl.querySelector('.knob');
+joyEl.addEventListener('pointerdown',e=>{e.preventDefault();if(joy.id!=null)return;joy.id=e.pointerId;joy.x0=e.clientX;joy.y0=e.clientY;joy.v=0;try{joyEl.setPointerCapture(e.pointerId);}catch(_){}
+ joyB.style.left=joyK.style.left=e.clientX+'px';joyB.style.top=joyK.style.top=e.clientY+'px';joyEl.classList.add('on');});
+joyEl.addEventListener('pointermove',e=>{if(e.pointerId!==joy.id)return;const R=60;let dx=e.clientX-joy.x0,dy=e.clientY-joy.y0;const l=Math.hypot(dx,dy);if(l>R){dx*=R/l;dy*=R/l;}
+ joyK.style.left=(joy.x0+dx)+'px';joyK.style.top=(joy.y0+dy)+'px';let v=dx/R;v=Math.abs(v)<0.08?0:(v-Math.sign(v)*0.08)/0.92;joy.v=clamp(v,-1,1);});
+const joyEnd=e=>{if(e.pointerId!==joy.id)return;joy.id=null;joy.v=0;joyEl.classList.remove('on');};
+for(const ev of ['pointerup','pointercancel','lostpointercapture'])joyEl.addEventListener(ev,joyEnd);
+document.querySelectorAll('#slotTap div').forEach(d=>d.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(player&&state!=='menu'&&state!=='results')swapSlot(player,+d.dataset.s);}));
+function placeTouchUI(){const r=hud.getBoundingClientRect(),u=r.height/225,cx=r.left+(W/2)*u;const st=document.getElementById('slotTap').style;
+ st.left=(cx-40*u)+'px';st.top=(r.top+4*u)+'px';st.width=(80*u)+'px';st.height=(42*u)+'px';document.getElementById('pauseTouch').style.left=(cx+58*u)+'px';}
+addEventListener('resize',()=>setTimeout(placeTouchUI,50));setTimeout(placeTouchUI,100);
 document.querySelectorAll('#steerSeg button').forEach(b=>b.onclick=()=>{if(+b.dataset.s===1)enableTilt();else{setSteerMode(false);tiltNote('');}});
-document.querySelectorAll('#gasSeg button').forEach(b=>b.onclick=()=>{ctrl.autoGas=b.dataset.a==='1';document.querySelectorAll('#gasSeg button').forEach(x=>x.classList.toggle('on',x===b));});
+
 async function goFull(){try{const el=document.documentElement;if(!document.fullscreenElement){if(el.requestFullscreen)await el.requestFullscreen({navigationUI:'hide'});else if(el.webkitRequestFullscreen)el.webkitRequestFullscreen();}
  if(screen.orientation&&screen.orientation.lock)await screen.orientation.lock('landscape').catch(()=>{});}catch(e){tiltNote("Fullscreen isn't allowed in this viewer. Add the game to your home screen or open the file directly for full screen.");}}
 document.getElementById('fsBtn').onclick=goFull;
