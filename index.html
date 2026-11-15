@@ -252,7 +252,7 @@ function genWorld(seed){
    if(d>HALF-2.6){c=((nr>>2)&1)?RED:WHT;hm[i]+=0.8;surf[i]=4;}
    else{surf[i]=1;
     if(nr<3||nr>N-2)c=(((x>>1)+(y>>1))&1)?WHT:BLK;
-    else{c=shade(ASPH1,0.9+n*0.2+jit*0.08); if(d<0.9&&((nr>>3)&1))c=rgb(255,226,120);}}
+    else{c=shade(ASPH1,n>0.55?1.04:0.96); if(d<0.9&&((nr>>3)&1))c=rgb(255,226,120);}}
   }else if(d<=WALL_IN){surf[i]=0;const nr=tnear[i];c=mixc(mixc(G1,G2,clamp(n+jit*0.2,0,1)),rgb(150,225,120),0.35);
    if(gapM[i]&&d>WALL_IN-1.6){c=((nr>>1)&1)?rgb(255,214,64):rgb(46,38,56);hm[i]+=0.35;}
   }else if(gapM[i]&&hm[i]>=WATER){surf[i]=0;c=mixc(SAND,rgb(220,190,140),jit*0.4);
@@ -264,7 +264,7 @@ function genWorld(seed){
   }else if(hm[i]<WATER){hm[i]=WATER;surf[i]=2;c=rgb(80+n*40,160+n*40,235+jit*10);}
   else{surf[i]=0;const h=hm[i];
    if(h<WATER+2.5)c=SAND;else if(h>78)c=SNOW;else if(h>58)c=mixc(ROCK,SNOW,(h-58)/20*0.4);
-   else{c=mixc(G1,G2,clamp(n*1.2-0.1+jit*0.15,0,1));if(d<RAD)c=mixc(c,rgb(140,220,110),0.3);}
+   else{c=mixc(G1,G2,n<0.42?0.1:(n<0.6?0.5:0.9));if(d<RAD)c=mixc(c,rgb(140,220,110),0.3);}
   }
   ccol[i]=c;}
  // ---- bushes & candy trees
@@ -279,7 +279,7 @@ function genWorld(seed){
  for(let t=0;t<5000;t++){const i=((R()*MS)|0)*MS+((R()*MS)|0);if(surf[i]===0&&hm[i]>WATER+3&&hm[i]<58)ccol[i]=FL[(R()*4)|0];}
  // ---- lighting
  for(let y=0;y<MS;y++)for(let x=0;x<MS;x++){const i=y*MS+x;
-  let L=1+(hm[i]-hm[((y-2)&MM)*MS+((x-2)&MM)])*0.05;L=clamp(L,0.6,1.35);if(surf[i]===2)L=1;cmap[i]=shade(ccol[i],L);}
+  let L=1+(hm[i]-hm[((y-2)&MM)*MS+((x-2)&MM)])*0.05;L=L<0.8?0.7:(L<1.12?1:1.2);if(surf[i]===2)L=1;cmap[i]=shade(ccol[i],L);}
  cmap0.set(cmap);
  // ---- item boxes
  boxes=[];
@@ -834,7 +834,13 @@ function renderSprites(){const list=[];
 const CRT_LUT=new Uint8Array(256);for(let v=0;v<256;v++){const x=v/255;CRT_LUT[v]=clamp(Math.round(255*(((x-0.5)*1.12+0.5)*1.05)),0,255);}
 function crtPass(){const n=W*H,f=0.985+Math.random()*0.015;for(let i=0;i<n;i++){const c=buf[i];let r=CRT_LUT[c&255],g=CRT_LUT[(c>>8)&255],b=CRT_LUT[(c>>16)&255];
  const l=(r+g+b)/3;r=l+(r-l)*1.18;g=l+(g-l)*1.18;b=l+(b-l)*1.18;buf[i]=(0xFF000000|((clamp(b*f,0,255)|0)<<16)|((clamp(g*f,0,255)|0)<<8)|(clamp(r*f,0,255)|0))>>>0;}}
-function render(){renderSky();renderTerrain();renderSprites();if(document.body.classList.contains('crt'))crtPass();ctx.putImageData(img,0,0);drawHUD();}
+const INK=new Uint8Array(400*225*2);let inkOn=true;
+function inkPass(){const n=W*H,DI=viewDist;INK.fill(0,0,n);
+ for(let y=1;y<H-1;y++){let p=y*W+1;for(let x=1;x<W-1;x++,p++){const d=depth[p];if(d>=1e8)continue;const t=d*1.12+2.5;
+  if(depth[p-W]>t||depth[p+1]>t||depth[p-1]>t||depth[p+W]>t*1.4)INK[p]=1;}}
+ for(let p=0;p<n;p++){if(!INK[p])continue;const k=clamp(1-depth[p]/(DI*0.85),0,1)*0.85;if(k<=0.05)continue;const c=buf[p];
+  buf[p]=(0xFF000000|((((c>>16)&255)*(1-k)+48*k)<<16)|((((c>>8)&255)*(1-k)+24*k)<<8)|(((c&255)*(1-k)+42*k)|0))>>>0;}}
+function render(){renderSky();renderTerrain();renderSprites();if(inkOn)inkPass();if(document.body.classList.contains('crt'))crtPass();ctx.putImageData(img,0,0);drawHUD();}
 
 // ======================================================= HUD
 function txt(s,x,y,size,align,col,u){hc.font=`700 ${size}px Fredoka, system-ui, sans-serif`;hc.textAlign=align||'left';hc.textBaseline='alphabetic';
