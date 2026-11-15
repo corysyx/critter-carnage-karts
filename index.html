@@ -160,8 +160,8 @@ let viewDist=520;
 // ======================================================= canvases
 const cv=document.getElementById('game');
 const ctx=cv.getContext('2d');
-let img,buf,depth,YB,COLOFF;
-function setRes(nw){if(nw===W&&img)return;W=nw;K=(W/2)/SCALE;cv.width=W;cv.height=H;img=ctx.createImageData(W,H);buf=new Uint32Array(img.data.buffer);depth=new Float32Array(W*H);YB=new Int32Array(W);
+let img,buf,depth,YB,COLOFF,mat;
+function setRes(nw){if(nw===W&&img)return;W=nw;K=(W/2)/SCALE;cv.width=W;cv.height=H;img=ctx.createImageData(W,H);buf=new Uint32Array(img.data.buffer);depth=new Float32Array(W*H);YB=new Int32Array(W);mat=new Uint8Array(W*H);
  COLOFF=new Float32Array(W);for(let i=0;i<W;i++)COLOFF[i]=Math.atan(((i+0.5)-W/2)/(W/2)*K);}
 const hud=document.getElementById('hud');const hc=hud.getContext('2d');
 let HW=1,HH=1;
@@ -178,6 +178,7 @@ const tdist=new Float32Array(MS*MS), tnear=new Int32Array(MS*MS);
 const gapM=new Uint8Array(MS*MS); // 1 = no barrier here (open edge beside water)
 let noWall=null;
 const stainM=new Uint8Array(MS*MS);
+const rid=new Uint8Array(MS*MS); // material/region id per cell, for ink outlines
 let N=0,TX,TY,TH,TTX,TTY;
 let boxes=[];
 let SKYW=1200, sky;
@@ -257,6 +258,7 @@ function genWorld(seed){
    if(gapM[i]&&d>WALL_IN-1.6){c=((nr>>1)&1)?rgb(255,214,64):rgb(46,38,56);hm[i]+=0.35;}
   }else if(gapM[i]&&hm[i]>=WATER){surf[i]=0;c=mixc(SAND,rgb(220,190,140),jit*0.4);
   }else if(d<=WALL_OUT&&!gapM[i]){const nr=tnear[i],[fh,kind,along]=fenceAt(x,y,nr,d);surf[i]=kind?5:0;
+   rid[i]=kind===2?9:(kind===3?12:(kind===1?4:0));
    if(kind===0)c=mixc(mixc(G1,G2,clamp(n+jit*0.2,0,1)),rgb(150,225,120),0.35);
    else if(kind===2)c=shade(rgb(132,84,52),0.9+jit*0.15);
    else if(kind===3)c=shade(rgb(168,112,66),0.88+jit*0.12);
@@ -277,6 +279,10 @@ function genWorld(seed){
    if(hh>hm[j]){hm[j]=hh;ccol[j]=mixc(col,top,Math.sqrt(q)*0.7+R()*0.15);surf[j]=3;}}}
  const FL=[rgb(255,120,180),rgb(255,232,90),rgb(255,255,255),rgb(190,150,255)];
  for(let t=0;t<5000;t++){const i=((R()*MS)|0)*MS+((R()*MS)|0);if(surf[i]===0&&hm[i]>WATER+3&&hm[i]<58)ccol[i]=FL[(R()*4)|0];}
+ // ---- region ids for ink outlines
+ for(let i=0;i<MS*MS;i++){if(rid[i])continue;const sf=surf[i],d=tdist[i],c=ccol[i];let r;
+  if(sf===1)r=1;else if(sf===4)r=2;else if(sf===2)r=5;else if(sf===3)r=(c&255)>((c>>8)&255)?10:7;
+  else if(gapM[i]&&d<=WALL_IN&&d>WALL_IN-1.6)r=8;else if(hm[i]<WATER+2.5)r=6;else if(hm[i]>58)r=11;else r=3;rid[i]=r;}
  // ---- lighting
  for(let y=0;y<MS;y++)for(let x=0;x<MS;x++){const i=y*MS+x;
   let L=1+(hm[i]-hm[((y-2)&MM)*MS+((x-2)&MM)])*0.05;L=L<0.8?0.7:(L<1.12?1:1.2);if(surf[i]===2)L=1;cmap[i]=shade(ccol[i],L);}
@@ -800,7 +806,7 @@ function renderTerrain(){YB.fill(H);const fx=cam.fx,fy=cam.fy,rx=cam.rx,ry=cam.r
  const DIST=viewDist;while(z<DIST){const hw=z*K;let lx=cam.x+fx*z-rx*hw,ly=cam.y+fy*z-ry*hw;const sx=rx*hw*2/W,sy=ry*hw*2/W,inv=SCALE/z;
   let f=(z-FOGS)/(DIST-FOGS);f=f<0?0:f>1?1:f;f=f*f*(3-2*f);
   for(let i=0;i<W;i++){const mi=((Math.floor(ly))&MM)*MS+((Math.floor(lx))&MM);const top=((ch-hm[mi])*inv+hor)|0;const yb=YB[i];
-   if(top<yb){let c=cmap[mi];if(f>0)c=fogMix(c,f);const t0=top<0?0:top;for(let y=t0,p=t0*W+i;y<yb;y++,p+=W){buf[p]=c;depth[p]=z;}YB[i]=t0;}
+   if(top<yb){let c=cmap[mi];if(f>0)c=fogMix(c,f);const t0=top<0?0:top;const rr=rid[mi];for(let y=t0,p=t0*W+i;y<yb;y++,p+=W){buf[p]=c;depth[p]=z;mat[p]=rr;}YB[i]=t0;}
    lx+=sx;ly+=sy;}
   z+=dz;dz*=1.012;}}
 let PZ=0,PX=0,PY=0,PINV=0;
@@ -810,7 +816,7 @@ function blit(spr,zf,sx,sb,pw,flip,hs){const DIST=viewDist;const ph=pw*spr.h/spr
  let f=(zf-FOGS)/(DIST-FOGS);f=f<0?0:f>1?1:f;
  const xs=Math.max(0,x0),xe=Math.min(W,x1),ys=Math.max(0,y0),ye=Math.min(H,y1);
  for(let y=ys;y<ye;y++){const row=((y-y0)*dv|0)*sw;let p=y*W+xs;
-  for(let x=xs;x<xe;x++,p++){if(depth[p]<zt)continue;let u=((x-x0)*du)|0;if(flip)u=sw-1-u;let c=data[row+u];if(c){if(f>0)c=fogMix(c,f);buf[p]=c;depth[p]=zf;}}}}
+  for(let x=xs;x<xe;x++,p++){if(depth[p]<zt)continue;let u=((x-x0)*du)|0;if(flip)u=sw-1-u;let c=data[row+u];if(c){if(f>0)c=fogMix(c,f);buf[p]=c;depth[p]=zf;mat[p]=255;}}}}
 function renderSprites(){const list=[];
  const add=(spr,x,y,z,w,flip,bias,hs)=>{if(project(x,y,z))list.push({spr,zf:PZ-(bias||0),z:PZ,sx:PX,sb:PY,pw:w*PINV,flip,hs});};
  for(const k of racers){
@@ -835,10 +841,12 @@ const CRT_LUT=new Uint8Array(256);for(let v=0;v<256;v++){const x=v/255;CRT_LUT[v
 function crtPass(){const n=W*H,f=0.985+Math.random()*0.015;for(let i=0;i<n;i++){const c=buf[i];let r=CRT_LUT[c&255],g=CRT_LUT[(c>>8)&255],b=CRT_LUT[(c>>16)&255];
  const l=(r+g+b)/3;r=l+(r-l)*1.18;g=l+(g-l)*1.18;b=l+(b-l)*1.18;buf[i]=(0xFF000000|((clamp(b*f,0,255)|0)<<16)|((clamp(g*f,0,255)|0)<<8)|(clamp(r*f,0,255)|0))>>>0;}}
 const INK=new Uint8Array(400*225*2);let inkOn=true;
-function inkPass(){const n=W*H,DI=viewDist;INK.fill(0,0,n);
- for(let y=1;y<H-1;y++){let p=y*W+1;for(let x=1;x<W-1;x++,p++){const d=depth[p];if(d>=1e8)continue;const t=d*1.12+2.5;
-  if(depth[p-W]>t||depth[p+1]>t||depth[p-1]>t||depth[p+W]>t*1.4)INK[p]=1;}}
- for(let p=0;p<n;p++){if(!INK[p])continue;const k=clamp(1-depth[p]/(DI*0.85),0,1)*0.85;if(k<=0.05)continue;const c=buf[p];
+function inkPass(){const n=W*H,DI=viewDist,NEAR=DI*0.6;INK.fill(0,0,n);
+ for(let y=1;y<H-1;y++){let p=y*W+1;for(let x=1;x<W-1;x++,p++){const d=depth[p];if(d>=1e8)continue;const t=d*1.07+1.5;
+  if(depth[p-W]>t||depth[p+1]>t||depth[p-1]>t||depth[p+W]>t*1.4){INK[p]=1;continue;}
+  const m=mat[p];if(m===255||d>NEAR)continue;const a=mat[p-W],l=mat[p-1];
+  if((a!==m&&a!==255&&depth[p-W]<1e8)||(l!==m&&l!==255))INK[p]=2;}}
+ for(let p=0;p<n;p++){if(!INK[p])continue;const k=INK[p]===1?clamp(1-depth[p]/(DI*0.85),0,1)*0.85:clamp(1-depth[p]/NEAR,0,1)*0.8;if(k<=0.05)continue;const c=buf[p];
   buf[p]=(0xFF000000|((((c>>16)&255)*(1-k)+48*k)<<16)|((((c>>8)&255)*(1-k)+24*k)<<8)|(((c&255)*(1-k)+42*k)|0))>>>0;}}
 function render(){renderSky();renderTerrain();renderSprites();if(inkOn)inkPass();if(document.body.classList.contains('crt'))crtPass();ctx.putImageData(img,0,0);drawHUD();}
 
