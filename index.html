@@ -109,8 +109,8 @@ body.aa #game{image-rendering:auto}
   <div id="tiltNote" class="note hidden"></div>
   <div class="btnrow"><button class="btn" id="startBtn">Start Race</button><button class="btn alt touchonly" id="fsBtn">Fullscreen</button></div>
   <div class="legend" id="legend"></div>
-  <div class="help touchonly" style="justify-content:center">Karts drive themselves · touch the left side to steer · ITEM fires, tap the slots up top to swap · hold DRIFT round corners</div>
-  <div class="help keyhelp"><kbd>↑</kbd>/<kbd>W</kbd> gas · <kbd>↓</kbd>/<kbd>S</kbd> brake · <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> drift (hold for a mini-boost) · <kbd>Space</kbd> use item · <kbd>Q</kbd> swap item · <kbd>R</kbd> back to track · <kbd>P</kbd> pause · <kbd>M</kbd> mute · <kbd>V</kbd> CRT filter · <kbd>B</kbd> anti-aliasing<br>Tip: hold gas just as the countdown hits GO for a rocket start.</div>
+  <div class="help touchonly" style="justify-content:center">Karts drive themselves · touch the left side to steer (push up/down to aim items) · ITEM fires, tap the slots up top to swap · hold DRIFT round corners</div>
+  <div class="help keyhelp"><kbd>↑</kbd>/<kbd>W</kbd> gas · <kbd>↓</kbd>/<kbd>S</kbd> brake · <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> drift (hold for a mini-boost) · <kbd>Space</kbd> use item (hold <kbd>↑</kbd>/<kbd>↓</kbd> to fire forward/back) · <kbd>Q</kbd> swap item · <kbd>R</kbd> back to track · <kbd>P</kbd> pause · <kbd>M</kbd> mute · <kbd>V</kbd> CRT filter · <kbd>B</kbd> anti-aliasing<br>Tip: hold gas just as the countdown hits GO for a rocket start.</div>
 </div>
 
 <div id="results" class="overlay hidden">
@@ -634,13 +634,19 @@ function curSlot(k){return k.items[k.sel]?k.sel:(k.items[1-k.sel]?1-k.sel:-1);}
 function curItem(k){const i=curSlot(k);return i<0?null:k.items[i];}
 function freeSlot(k){return k.items[0]==null?0:(k.items[1]==null?1:-1);}
 function swapSlot(k,to){if(to==null)to=1-k.sel;else if(to===k.sel)to=1-k.sel;k.sel=to;if(k.isPlayer)tone(520,.06,'triangle',.08);}
-function useItem(k){const si=curSlot(k);if(si<0||k.ko>0)return;const it=k.items[si];k.items[si]=null;k.itemHeld=0;
+function useItem(k,aim){aim=aim||0;const si=curSlot(k);if(si<0||k.ko>0)return;const it=k.items[si];k.items[si]=null;k.itemHeld=0;
  if(k.items[1-si])k.sel=1-si;
  const fx=Math.cos(k.a),fy=Math.sin(k.a);
- if(it==='rocket'){const ahead=order.filter(o=>o.rank<k.rank&&o.ko<=0&&!o.finished);const target=ahead.length?ahead[ahead.length-1]:null;
-  projectiles.push({type:'rocket',x:k.x+fx*6,y:k.y+fy*6,z:k.z+3,a:k.a,speed:Math.max(k.speed,0)+115,owner:k,target,life:7,t:0});if(k.isPlayer||vol(k.x,k.y)>0.3)sfx.fire();}
- else if(it==='saw'){projectiles.push({type:'saw',x:k.x+fx*6,y:k.y+fy*6,z:k.z+2,a:k.a,speed:Math.max(k.speed,0)+100,owner:k,life:4.5,t:0});if(k.isPlayer||vol(k.x,k.y)>0.3)sfx.fire();}
- else if(it==='mine'||it==='slime'){projectiles.push({type:it,x:k.x-fx*8,y:k.y-fy*8,z:k.z,a:0,speed:0,owner:k,life:it==='mine'?45:35,t:0});if(k.isPlayer)sfx.bump();}
+ const back=aim<0||(aim===0&&(it==='mine'||it==='slime')),sg=back?-1:1,fa=back?k.a+Math.PI:k.a,fwdV=back?0:Math.max(k.speed,0),ld=k.isPlayer||vol(k.x,k.y)>0.3;
+ if(it==='rocket'){let target=null;
+   if(back){const behind=order.filter(o=>o.rank>k.rank&&o.ko<=0&&!o.finished);target=behind.length?behind[0]:null;}
+   else{const ahead=order.filter(o=>o.rank<k.rank&&o.ko<=0&&!o.finished);target=ahead.length?ahead[ahead.length-1]:null;}
+   projectiles.push({type:'rocket',x:k.x+fx*6*sg,y:k.y+fy*6*sg,z:k.z+3,a:fa,speed:fwdV+115,owner:k,target,life:7,t:0,dir:sg,seg:k.seg});if(ld)sfx.fire();}
+ else if(it==='saw'){projectiles.push({type:'saw',x:k.x+fx*6*sg,y:k.y+fy*6*sg,z:k.z+2,a:fa,speed:fwdV+100,owner:k,life:4.5,t:0});if(ld)sfx.fire();}
+ else if(it==='mine'||it==='slime'){
+   if(back)projectiles.push({type:it,x:k.x-fx*8,y:k.y-fy*8,z:k.z,a:0,speed:0,owner:k,life:it==='mine'?45:35,t:0});
+   else projectiles.push({type:it,x:k.x+fx*6,y:k.y+fy*6,z:k.z+2,a:k.a,speed:Math.max(k.speed,0)+55,owner:k,life:it==='mine'?45:35,t:0,fly:0.55});
+   if(k.isPlayer)sfx.bump();}
  else if(it==='boost'){k.boost=2.2;if(k.isPlayer)sfx.boost();}
  else if(it==='shield'){k.shield=10;if(k.isPlayer)sfx.shield();}
 }
@@ -662,6 +668,7 @@ function hitKart(k,p){if(k.invuln>0||k.ko>0)return false;
  if(p.type==='slime'){k.spin=1.1;if(k.isPlayer){sfx.boing();msg('Slimed!','#a6ff7a');}else if(p.owner&&p.owner.isPlayer)msg(k.sp.name+' slipped!','#a6ff7a');return true;}
  koKart(k,p.owner,p.type,p.a);return true;}
 
+function aimDir(){if(keys.ArrowDown||keys.KeyS||touch.B||(joy.id!=null&&joy.vy<-0.45))return -1;if(keys.ArrowUp||keys.KeyW||(joy.id!=null&&joy.vy>0.45))return 1;return 0;}
 function playerInput(){const up=keys.ArrowUp||keys.KeyW||touch.G,dn=keys.ArrowDown||keys.KeyS||touch.B,l=keys.ArrowLeft||keys.KeyA||touch.L,r=keys.ArrowRight||keys.KeyD||touch.R;
  let steer=(r?1:0)-(l?1:0);if(joy.id!=null&&Math.abs(joy.v)>Math.abs(steer))steer=joy.v;if(ctrl.tilt&&gyro.on&&Math.abs(gyro.val)>Math.abs(steer))steer=gyro.val;
  let thr=up?1:(dn?-1:0);if(touchOn&&!dn)thr=1;
@@ -695,10 +702,14 @@ function aiInput(k,dt){
 function aiItems(k,dt){const it=curItem(k);if(!it)return;k.itemHeld+=dt;let use=false;
  const fx=Math.cos(k.a),fy=Math.sin(k.a);
  if(it==='boost'||it==='shield')use=k.itemHeld>0.6;
- else if(it==='rocket')use=(k.itemHeld>1&&k.rank>0)||k.itemHeld>10;
+ else if(it==='rocket')use=k.itemHeld>1&&(k.rank>0||k.rank<racers.length-1)||k.itemHeld>10;
  else if(it==='saw')use=k.itemHeld>8||racers.some(o=>{if(o===k||o.ko>0)return false;const dx=o.x-k.x,dy=o.y-k.y,d=Math.hypot(dx,dy);return d<90&&(dx*fx+dy*fy)/d>0.95;});
  else use=k.itemHeld>6||racers.some(o=>{if(o===k||o.ko>0)return false;const dx=o.x-k.x,dy=o.y-k.y,d=Math.hypot(dx,dy);return d<45&&(dx*fx+dy*fy)/d<-0.6;});
- if(use&&rnd()<dt*3)useItem(k);}
+ if(use&&rnd()<dt*3){let aim=0;const near=(dirSign,r)=>racers.some(o=>{if(o===k||o.ko>0)return false;const dx=o.x-k.x,dy=o.y-k.y,d=Math.hypot(dx,dy);return d<r&&dirSign*(dx*fx+dy*fy)/d>0.7;});
+  if(it==='rocket')aim=k.rank===0?-1:1;
+  else if(it==='saw')aim=near(1,90)?1:(near(-1,60)?-1:1);
+  else if(it==='mine'||it==='slime')aim=near(-1,45)?-1:(near(1,40)?1:-1);
+  useItem(k,aim);}}
 
 function updateRacer(k,dt,inp){
  if(k.invuln>0)k.invuln-=dt;if(k.shield>0)k.shield-=dt;if(k.boost>0)k.boost-=dt;
@@ -752,9 +763,9 @@ function updateRacer(k,dt,inp){
 function updateProjectiles(dt){
  for(let i=projectiles.length-1;i>=0;i--){const p=projectiles[i];p.t+=dt;p.life-=dt;
   if(p.seg==null)p.seg=p.owner?p.owner.seg:0;
-  {let best=p.seg,bd=1e18;for(let o=-10;o<=20;o++){const q=(p.seg+o+N)%N,dx=TX[q]-p.x,dy=TY[q]-p.y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=q;}}p.seg=best;}
+  {const dr=p.dir||1;let best=p.seg,bd=1e18;for(let o=-15;o<=15;o++){const q=(p.seg+o+N)%N,dx=TX[q]-p.x,dy=TY[q]-p.y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=q;}}p.seg=best;}
   if(p.type==='rocket'){let ax,ay;const tg=p.target&&p.target.ko<=0?p.target:null;
-   if(tg&&Math.hypot(tg.x-p.x,tg.y-p.y)<35){ax=tg.x;ay=tg.y;}else{const q=(p.seg+10)%N;ax=TX[q];ay=TY[q];}
+   if(tg&&Math.hypot(tg.x-p.x,tg.y-p.y)<35){ax=tg.x;ay=tg.y;}else{const q=(p.seg+10*(p.dir||1)+N)%N;ax=TX[q];ay=TY[q];}
    p.a+=clamp(angDiff(p.a,Math.atan2(ay-p.y,ax-p.x)),-4*dt,4*dt);
    if(rnd()<0.9)addP(p.x-Math.cos(p.a)*3,p.y-Math.sin(p.a)*3,p.z,(rnd()-0.5)*10,(rnd()-0.5)*10,5,'fire',rnd()<0.5?rgb(255,220,90):rgb(255,140,60),0.8,0.25);}
   if(p.speed>0){p.x+=Math.cos(p.a)*p.speed*dt;p.y+=Math.sin(p.a)*p.speed*dt;
@@ -763,9 +774,11 @@ function updateProjectiles(dt){
     if(p.type==='saw'){const dx=Math.cos(p.a),dy=Math.sin(p.a),vn=dx*wx+dy*wy;if(vn>0){p.a=Math.atan2(dy-2*vn*wy,dx-2*vn*wx);p.bounces=(p.bounces||0)+1;
       sparkle(p.x,p.y,p.z,8,[rgb(255,230,120),rgb(255,255,255)]);if(p.bounces>4)p.life=0;else if(vol(p.x,p.y)>0.2)sfx.bump();}
      p.x=TX[nr]+wx*(WALL_IN-0.6);p.y=TY[nr]+wy*(WALL_IN-0.6);}
+    else if(p.fly){p.x=TX[nr]+wx*(WALL_IN-1);p.y=TY[nr]+wy*(WALL_IN-1);p.speed=0;}
     else{p.life=0;}}
    const g=groundH(p.x,p.y);
-   if(g-p.z>(p.type==='rocket'?9:4)){p.life=0;}else p.z=g+(p.type==='rocket'?3.5:2.2);
+   if(p.fly){p.z=g+Math.sin(Math.PI*Math.min(1,p.t/p.fly))*9;p.speed*=1-1.5*dt;if(p.t>=p.fly){p.speed=0;p.z=g;p.fly=0;}}
+   else if(g-p.z>(p.type==='rocket'?9:4)){p.life=0;}else p.z=g+(p.type==='rocket'?3.5:2.2);
    if(p.x<0||p.y<0||p.x>MS||p.y>MS)p.life=0;}
   else p.z=groundH(p.x,p.y);
   if(p.life>0){for(const k of racers){if(k.ko>0)continue;if(k===p.owner&&p.t<1.2)continue;const dx=k.x-p.x,dy=k.y-p.y;
@@ -793,7 +806,7 @@ function update(dt){
    const inp=(k.isPlayer&&!k.finished)?playerInput():aiInput(k,dt);
    updateRacer(k,dt,inp);
    if(!k.isPlayer||k.finished)aiItems(k,dt);}
-  if(itemPressed){if(!player.finished)useItem(player);}
+  if(itemPressed){if(!player.finished)useItem(player,aimDir());}
   collideRacers();updateProjectiles(dt);updateBoxes(dt);
   order=racers.slice().sort((a,b)=>(b.finished?1e7-b.finishTime:b.prog)-(a.finished?1e7-a.finishTime:a.prog));order.forEach((k,i)=>k.rank=i);
   if(state==='finished'){finT+=dt;if(finT>3.6)showResults();}
@@ -905,7 +918,7 @@ function drawHUD(){const u=HH/225,CX=W/2,RX=W-10;hc.clearRect(0,0,HW,HH);hc.imag
   let ic=null;if(si===rs)ic=ICON[ITEMS[Math.floor(T*14)%6]];else if(P.items[si])ic=ICON[P.items[si]];
   if(ic){const iw=ic.width,ih=ic.height,sc=Math.min(bs*0.8/iw,bs*0.8/ih);hc.drawImage(ic,bx+bs/2-iw*sc/2,yy+bs/2-ih*sc/2,iw*sc,ih*sc);}
   txt(String(si+1),bx+3*u,yy+bs-3*u,6*u,'left',act?'#ffe36e':'#fff');}
- const ci=curItem(P);if(ci)txt(ITEM_NAME[ci]+(touchOn?'':' — SPACE')+(P.items[0]&&P.items[1]?(touchOn?' · tap to swap':' · Q swap'):''),CX*u,by+48*u,7*u,'center','#fff');
+ const ci=curItem(P);if(ci)txt(ITEM_NAME[ci]+(touchOn?'':' — SPACE')+(touchOn?'':' (hold ↑/↓ to aim)')+(P.items[0]&&P.items[1]?(touchOn?' · tap to swap':' · Q swap'):''),CX*u,by+48*u,7*u,'center','#fff');
  if(P.shield>0)txt(`🫧 shield ${Math.ceil(P.shield)}s`,CX*u,by+(ci?58:48)*u,7*u,'center','#9fe3ff');
  // minimap
  const ms=(touchOn?62:76)*u,mx=touchOn?HW-ms-8*u:8*u,my=touchOn?62*u:HH-ms-8*u;hc.globalAlpha=0.9;hc.drawImage(mini,mx,my,ms,ms);hc.globalAlpha=1;const f=ms/mini.width;
@@ -963,12 +976,12 @@ if(touchOn){document.getElementById('touch').classList.add('on');document.body.c
 addEventListener('contextmenu',e=>e.preventDefault());
 document.getElementById('pauseTouch').addEventListener('click',()=>togglePause());
 // floating joystick: touch anywhere on the left half, slide left/right to steer
-const joy={id:null,x0:0,y0:0,v:0},joyEl=document.getElementById('joy'),joyB=joyEl.querySelector('.base'),joyK=joyEl.querySelector('.knob');
+const joy={id:null,x0:0,y0:0,v:0,vy:0},joyEl=document.getElementById('joy'),joyB=joyEl.querySelector('.base'),joyK=joyEl.querySelector('.knob');
 joyEl.addEventListener('pointerdown',e=>{e.preventDefault();if(joy.id!=null)return;joy.id=e.pointerId;joy.x0=e.clientX;joy.y0=e.clientY;joy.v=0;try{joyEl.setPointerCapture(e.pointerId);}catch(_){}
  joyB.style.left=joyK.style.left=e.clientX+'px';joyB.style.top=joyK.style.top=e.clientY+'px';joyEl.classList.add('on');});
 joyEl.addEventListener('pointermove',e=>{if(e.pointerId!==joy.id)return;const R=60;let dx=e.clientX-joy.x0,dy=e.clientY-joy.y0;const l=Math.hypot(dx,dy);if(l>R){dx*=R/l;dy*=R/l;}
- joyK.style.left=(joy.x0+dx)+'px';joyK.style.top=(joy.y0+dy)+'px';let v=dx/R;v=Math.abs(v)<0.08?0:(v-Math.sign(v)*0.08)/0.92;joy.v=clamp(v,-1,1);});
-const joyEnd=e=>{if(e.pointerId!==joy.id)return;joy.id=null;joy.v=0;joyEl.classList.remove('on');};
+ joyK.style.left=(joy.x0+dx)+'px';joyK.style.top=(joy.y0+dy)+'px';let v=dx/R;v=Math.abs(v)<0.08?0:(v-Math.sign(v)*0.08)/0.92;joy.v=clamp(v,-1,1);joy.vy=clamp(-dy/R,-1,1);});
+const joyEnd=e=>{if(e.pointerId!==joy.id)return;joy.id=null;joy.v=0;joy.vy=0;joyEl.classList.remove('on');};
 for(const ev of ['pointerup','pointercancel','lostpointercapture'])joyEl.addEventListener(ev,joyEnd);
 document.querySelectorAll('#slotTap div').forEach(d=>d.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(player&&state!=='menu'&&state!=='results')swapSlot(player,+d.dataset.s);}));
 function placeTouchUI(){const r=hud.getBoundingClientRect(),u=r.height/225,cx=r.left+(W/2)*u;const st=document.getElementById('slotTap').style;
